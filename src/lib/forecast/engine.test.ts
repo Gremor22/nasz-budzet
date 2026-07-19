@@ -399,3 +399,70 @@ describe("demo state smoke", () => {
     expect(result.nextConfirmedIncome?.name).toContain("Mileny");
   });
 });
+
+describe("stage 3: cancelled and reserved bills", () => {
+  it("ignores cancelled recurring bills in the path", () => {
+    const state = emptyState({
+      accounts: [
+        {
+          id: "acc",
+          name: "Test",
+          owner: "shared",
+          type: "shared",
+          openingBalanceGrosze: zlToGrosze(2000),
+          includeInBudget: true,
+          active: true,
+        },
+      ],
+      recurringBills: [
+        {
+          id: "bill",
+          name: "Anulowany",
+          amountGrosze: zlToGrosze(1500),
+          frequency: "once",
+          nextOccurrenceDate: "2026-07-05",
+          active: true,
+          status: "cancelled",
+          paidBy: "shared",
+          category: "Dom",
+        },
+      ],
+    });
+    const result = computeForecast(state);
+    expect(result.events.filter((e) => e.sourceId === "bill")).toHaveLength(0);
+    expect(result.safeToSpendGrosze).toBe(zlToGrosze(2000));
+  });
+
+  it("counts reserved bill amount in reserved summary and on the path", () => {
+    const state = emptyState({
+      accounts: [
+        {
+          id: "acc",
+          name: "Test",
+          owner: "shared",
+          type: "shared",
+          openingBalanceGrosze: zlToGrosze(3000),
+          includeInBudget: true,
+          active: true,
+        },
+      ],
+      recurringBills: [
+        {
+          id: "bill",
+          name: "Czynsz zarezerwowany",
+          amountGrosze: zlToGrosze(1000),
+          frequency: "once",
+          nextOccurrenceDate: "2026-07-10",
+          active: true,
+          status: "reserved",
+          paidBy: "shared",
+          category: "Dom",
+        },
+      ],
+    });
+    const result = computeForecast(state);
+    expect(result.reservedGrosze).toBe(zlToGrosze(1000));
+    expect(result.events.some((e) => e.sourceId === "bill")).toBe(true);
+    expect(result.lowestBalanceGrosze).toBe(zlToGrosze(2000));
+  });
+});

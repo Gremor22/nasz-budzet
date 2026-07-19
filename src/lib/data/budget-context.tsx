@@ -11,14 +11,19 @@ import {
 } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { createDemoState } from "@/lib/data/demo-data";
-import { SupabaseBudgetRepository } from "@/lib/data/supabase-repository";
+import {
+  SupabaseBudgetRepository,
+  type AccountInput,
+  type IncomeSourceInput,
+  type RecurringBillInput,
+} from "@/lib/data/supabase-repository";
 import type {
   BudgetState,
   ForecastMode,
+  ForecastResult,
   Transaction,
 } from "@/lib/data/types";
 import { computeForecast } from "@/lib/forecast/engine";
-import type { ForecastResult } from "@/lib/data/types";
 import { todayIsoWarsaw } from "@/lib/dates/today";
 
 type DataSource = "local" | "supabase" | "loading";
@@ -41,6 +46,15 @@ interface BudgetContextValue {
   changeMode: (mode: ForecastMode) => Promise<void>;
   changeHorizon: (days: number) => Promise<void>;
   changeBufferZl: (zl: number) => Promise<void>;
+  saveAccount: (input: AccountInput & { id?: string }) => Promise<void>;
+  removeAccount: (id: string) => Promise<void>;
+  saveIncomeSource: (input: IncomeSourceInput & { id?: string }) => Promise<void>;
+  removeIncomeSource: (id: string) => Promise<void>;
+  saveRecurringBill: (
+    input: RecurringBillInput & { id?: string },
+  ) => Promise<void>;
+  removeRecurringBill: (id: string) => Promise<void>;
+  setGoalReserved: (id: string, reserved: boolean) => Promise<void>;
   seedDemo: () => Promise<void>;
   createInviteCode: () => Promise<string>;
   signOut: () => Promise<void>;
@@ -123,7 +137,6 @@ export function BudgetProvider({ children }: { children: ReactNode }) {
       setDataSource("supabase");
       setHydrated(true);
     } catch (e) {
-      // Członkostwo jest — nawet jeśli pełne dane nie wczytają się, nie wracaj na onboarding
       setHouseholdId(membership.household_id);
       setDataSource("supabase");
       setError(e instanceof Error ? e.message : "Błąd wczytywania danych");
@@ -224,6 +237,131 @@ export function BudgetProvider({ children }: { children: ReactNode }) {
       }));
       const repo = await withRepo();
       if (repo) await repo.updateHouseholdSettings({ safetyBufferGrosze: grosze });
+    },
+    saveAccount: async (input) => {
+      const repo = await withRepo();
+      if (!repo) {
+        setState((prev) => {
+          if (input.id) {
+            return {
+              ...prev,
+              accounts: prev.accounts.map((a) =>
+                a.id === input.id ? { ...a, ...input, id: input.id } : a,
+              ),
+            };
+          }
+          return {
+            ...prev,
+            accounts: [
+              ...prev.accounts,
+              { ...input, id: `acc-${crypto.randomUUID()}` },
+            ],
+          };
+        });
+        return;
+      }
+      await repo.upsertAccount(input);
+      await refresh();
+    },
+    removeAccount: async (id) => {
+      const repo = await withRepo();
+      if (!repo) {
+        setState((prev) => ({
+          ...prev,
+          accounts: prev.accounts.filter((a) => a.id !== id),
+        }));
+        return;
+      }
+      await repo.deleteAccount(id);
+      await refresh();
+    },
+    saveIncomeSource: async (input) => {
+      const repo = await withRepo();
+      if (!repo) {
+        setState((prev) => {
+          if (input.id) {
+            return {
+              ...prev,
+              incomeSources: prev.incomeSources.map((s) =>
+                s.id === input.id ? { ...s, ...input, id: input.id } : s,
+              ),
+            };
+          }
+          return {
+            ...prev,
+            incomeSources: [
+              ...prev.incomeSources,
+              { ...input, id: `inc-${crypto.randomUUID()}` },
+            ],
+          };
+        });
+        return;
+      }
+      await repo.upsertIncomeSource(input);
+      await refresh();
+    },
+    removeIncomeSource: async (id) => {
+      const repo = await withRepo();
+      if (!repo) {
+        setState((prev) => ({
+          ...prev,
+          incomeSources: prev.incomeSources.filter((s) => s.id !== id),
+        }));
+        return;
+      }
+      await repo.deleteIncomeSource(id);
+      await refresh();
+    },
+    saveRecurringBill: async (input) => {
+      const repo = await withRepo();
+      if (!repo) {
+        setState((prev) => {
+          if (input.id) {
+            return {
+              ...prev,
+              recurringBills: prev.recurringBills.map((b) =>
+                b.id === input.id ? { ...b, ...input, id: input.id } : b,
+              ),
+            };
+          }
+          return {
+            ...prev,
+            recurringBills: [
+              ...prev.recurringBills,
+              { ...input, id: `bill-${crypto.randomUUID()}` },
+            ],
+          };
+        });
+        return;
+      }
+      await repo.upsertRecurringBill(input);
+      await refresh();
+    },
+    removeRecurringBill: async (id) => {
+      const repo = await withRepo();
+      if (!repo) {
+        setState((prev) => ({
+          ...prev,
+          recurringBills: prev.recurringBills.filter((b) => b.id !== id),
+        }));
+        return;
+      }
+      await repo.deleteRecurringBill(id);
+      await refresh();
+    },
+    setGoalReserved: async (id, reserved) => {
+      const repo = await withRepo();
+      if (!repo) {
+        setState((prev) => ({
+          ...prev,
+          savingsGoals: prev.savingsGoals.map((g) =>
+            g.id === id ? { ...g, reserved } : g,
+          ),
+        }));
+        return;
+      }
+      await repo.setGoalReserved(id, reserved);
+      await refresh();
     },
     seedDemo: async () => {
       const repo = await withRepo();

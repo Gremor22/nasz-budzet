@@ -4,6 +4,26 @@ Wszystkie istotne zmiany w projekcie zapisujemy tutaj po każdym etapie.
 
 ---
 
+## 2026-07-19 — Etap 3: zarządzanie budżetem (konta, dochody, rachunki)
+
+### Zakres
+
+- CRUD kont, źródeł dochodu i rachunków cyklicznych (Supabase + UI)
+- Przełącznik „zarezerwowane” na celach
+- Wybór konta przy dodawaniu transakcji
+- Testy: anulowany / zarezerwowany rachunek
+
+### Zmiany bazy
+
+- Brak nowej migracji (tabele Etapu 2)
+
+### Znane ograniczenia
+
+- Brak pełnej edycji historii transakcji
+- Analityka / kategorie hierarchiczne — Etap 4
+
+---
+
 ## 2026-07-19 — Mini-PWA (przed Etapem 3)
 
 ### Zakres

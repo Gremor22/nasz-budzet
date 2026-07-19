@@ -9,8 +9,12 @@ import {
   type DbSavingsGoal,
   type DbTransaction,
 } from "@/lib/data/mappers";
-import type { BudgetState, ForecastMode, Transaction } from "@/lib/data/types";
+import type { BudgetState, ForecastMode, Transaction, Account, IncomeSource, RecurringBill } from "@/lib/data/types";
 import { todayIsoWarsaw } from "@/lib/dates/today";
+
+export type AccountInput = Omit<Account, "id">;
+export type IncomeSourceInput = Omit<IncomeSource, "id">;
+export type RecurringBillInput = Omit<RecurringBill, "id">;
 
 /**
  * Repozytorium Supabase — ten sam kształt danych co localStorage.
@@ -117,6 +121,124 @@ export class SupabaseBudgetRepository {
       .update(patch)
       .eq("id", this.householdId);
 
+    if (error) throw new Error(error.message);
+  }
+
+  async upsertAccount(input: AccountInput & { id?: string }): Promise<void> {
+    const row = {
+      household_id: this.householdId,
+      name: input.name,
+      owner_key: input.owner,
+      account_type: input.type,
+      opening_balance_grosze: input.openingBalanceGrosze,
+      include_in_budget: input.includeInBudget,
+      active: input.active,
+    };
+    if (input.id) {
+      const { error } = await this.supabase
+        .from("accounts")
+        .update(row)
+        .eq("id", input.id)
+        .eq("household_id", this.householdId);
+      if (error) throw new Error(error.message);
+      return;
+    }
+    const { error } = await this.supabase.from("accounts").insert(row);
+    if (error) throw new Error(error.message);
+  }
+
+  async deleteAccount(id: string): Promise<void> {
+    const { error } = await this.supabase
+      .from("accounts")
+      .delete()
+      .eq("id", id)
+      .eq("household_id", this.householdId);
+    if (error) throw new Error(error.message);
+  }
+
+  async upsertIncomeSource(
+    input: IncomeSourceInput & { id?: string },
+  ): Promise<void> {
+    const row = {
+      household_id: this.householdId,
+      name: input.name,
+      owner_key: input.owner,
+      typical_amount_grosze: input.typicalAmountGrosze,
+      safe_amount_grosze: input.safeAmountGrosze,
+      frequency: input.frequency,
+      day_of_month: input.dayOfMonth ?? null,
+      next_occurrence_date: input.nextOccurrenceDate,
+      end_date: input.endDate ?? null,
+      confidence: input.confidence,
+      active: input.active,
+      note: input.note ?? null,
+    };
+    if (input.id) {
+      const { error } = await this.supabase
+        .from("income_sources")
+        .update(row)
+        .eq("id", input.id)
+        .eq("household_id", this.householdId);
+      if (error) throw new Error(error.message);
+      return;
+    }
+    const { error } = await this.supabase.from("income_sources").insert(row);
+    if (error) throw new Error(error.message);
+  }
+
+  async deleteIncomeSource(id: string): Promise<void> {
+    const { error } = await this.supabase
+      .from("income_sources")
+      .delete()
+      .eq("id", id)
+      .eq("household_id", this.householdId);
+    if (error) throw new Error(error.message);
+  }
+
+  async upsertRecurringBill(
+    input: RecurringBillInput & { id?: string },
+  ): Promise<void> {
+    const row = {
+      household_id: this.householdId,
+      name: input.name,
+      amount_grosze: input.amountGrosze,
+      frequency: input.frequency,
+      day_of_month: input.dayOfMonth ?? null,
+      next_occurrence_date: input.nextOccurrenceDate,
+      end_date: input.endDate ?? null,
+      active: input.active,
+      status: input.status,
+      paid_by: input.paidBy,
+      category_name: input.category,
+    };
+    if (input.id) {
+      const { error } = await this.supabase
+        .from("recurring_bills")
+        .update(row)
+        .eq("id", input.id)
+        .eq("household_id", this.householdId);
+      if (error) throw new Error(error.message);
+      return;
+    }
+    const { error } = await this.supabase.from("recurring_bills").insert(row);
+    if (error) throw new Error(error.message);
+  }
+
+  async deleteRecurringBill(id: string): Promise<void> {
+    const { error } = await this.supabase
+      .from("recurring_bills")
+      .delete()
+      .eq("id", id)
+      .eq("household_id", this.householdId);
+    if (error) throw new Error(error.message);
+  }
+
+  async setGoalReserved(id: string, reserved: boolean): Promise<void> {
+    const { error } = await this.supabase
+      .from("savings_goals")
+      .update({ reserved })
+      .eq("id", id)
+      .eq("household_id", this.householdId);
     if (error) throw new Error(error.message);
   }
 

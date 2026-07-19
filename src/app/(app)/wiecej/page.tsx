@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useBudget } from "@/lib/data/budget-context";
 import { Card, Label, Money } from "@/components/ui";
 
@@ -15,6 +16,7 @@ export default function MorePage() {
     seedDemo,
     createInviteCode,
     signOut,
+    setGoalReserved,
   } = useBudget();
   const [bufferInput, setBufferInput] = useState(
     String(state.household.safetyBufferGrosze / 100),
@@ -37,6 +39,25 @@ export default function MorePage() {
             : "Tryb lokalny (bez Supabase)"}
         </p>
       </header>
+
+      <Card>
+        <Label>Budżet</Label>
+        <div className="mt-2 flex flex-col gap-1">
+          {[
+            { href: "/konta", label: "Konta" },
+            { href: "/dochody", label: "Źródła dochodu" },
+            { href: "/rachunki", label: "Rachunki cykliczne" },
+          ].map((item) => (
+            <Link
+              key={item.href}
+              href={item.href}
+              className="rounded-xl bg-[var(--bg-accent)] px-3 py-3 text-sm font-medium"
+            >
+              {item.label} →
+            </Link>
+          ))}
+        </div>
+      </Card>
 
       {dataSource === "supabase" && (
         <Card>
@@ -139,14 +160,23 @@ export default function MorePage() {
         ) : (
           <ul className="mt-2 divide-y divide-[var(--line)]">
             {state.savingsGoals.map((g) => (
-              <li key={g.id} className="py-2 text-sm">
-                <p className="font-medium">{g.name}</p>
-                <p className="text-[var(--ink-muted)]">
-                  zebrane <Money grosze={g.savedAmountGrosze} size="sm" />
-                  {g.reserved
-                    ? " · zarezerwowane (zmniejsza bezpieczną kwotę)"
-                    : " · tylko plan (nie zmniejsza)"}
-                </p>
+              <li key={g.id} className="flex items-center justify-between gap-2 py-2 text-sm">
+                <div>
+                  <p className="font-medium">{g.name}</p>
+                  <p className="text-[var(--ink-muted)]">
+                    zebrane <Money grosze={g.savedAmountGrosze} size="sm" />
+                  </p>
+                </div>
+                <label className="flex items-center gap-2 text-xs">
+                  <input
+                    type="checkbox"
+                    checked={g.reserved}
+                    onChange={(e) =>
+                      void setGoalReserved(g.id, e.target.checked)
+                    }
+                  />
+                  Zarezerwowane
+                </label>
               </li>
             ))}
           </ul>
@@ -204,7 +234,7 @@ export default function MorePage() {
       )}
 
       <p className="text-center text-xs text-[var(--ink-muted)]">
-        Etap 2 · Nasz Budżet · źródło: {dataSource}
+        Etap 3 · Nasz Budżet · źródło: {dataSource}
       </p>
     </div>
   );

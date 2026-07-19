@@ -1,7 +1,7 @@
 # Status projektu — Nasz Budżet
 
 **Ostatnia aktualizacja:** 19 lipca 2026  
-**Obecny etap:** Mini-PWA (przed Etapem 3)  
+**Obecny etap:** Etap 3 — pełny budżet (UI kont / dochodów / rachunków)  
 **URL testowy:** https://nasz-budzet.vercel.app  
 **Repozytorium:** https://github.com/Gremor22/nasz-budzet
 
@@ -9,30 +9,19 @@
 
 ## Funkcje działające
 
-- Prognoza, UI mobilny, testy Vitest
-- Rejestracja / logowanie / gospodarstwo (Supabase + RLS)
-- Wdrożenie testowe Vercel
-- **PWA:** manifest, ikony, standalone, podpowiedź instalacji iOS, komunikat offline
+- Prognoza (tryby, oś, najniższe saldo, ostrzeżenia)
+- Auth, gospodarstwo, PWA, Vercel
+- **Etap 3:** zarządzanie kontami, źródłami dochodu, rachunkami cyklicznymi
+- Rezerwacja celów; wybór konta przy dodawaniu transakcji
+- 16 testów Vitest
 
-## Funkcje niedziałające / później
+## Funkcje później
 
-- Etap 3: pełniejszy budżet
-- Etap 4–5: analityka, paragony
-- Pełne PWA offline / push (Etap 6 rozszerzony)
+- Etap 4: kategorie i analityka
+- Etap 5: paragony
 
-## Uruchomienie lokalne
+## Test ręczny Etapu 3
 
-```bash
-cd ~/Desktop/BudgetPlanner
-npm install
-npm run dev
-```
-
-## Zmienne środowiskowe
-
-```env
-NEXT_PUBLIC_SUPABASE_URL=
-NEXT_PUBLIC_SUPABASE_ANON_KEY=
-```
-
-Bez `service_role` w przeglądarce.
+1. Więcej → Konta / Dochody / Rachunki — dodaj lub edytuj wpis  
+2. Odśwież pulpit — prognoza powinna się zmienić  
+3. Drugie konto w gospodarstwie powinno widzieć te same dane  

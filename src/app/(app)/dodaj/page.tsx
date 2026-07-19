@@ -16,6 +16,11 @@ export default function AddPage() {
   const [category, setCategory] = useState("Jedzenie");
   const [person, setPerson] = useState<PersonId | "shared">("shared");
   const [status, setStatus] = useState<ExpenseStatus>("paid");
+  const defaultAccount =
+    state.accounts.find((a) => a.includeInBudget && a.active)?.id ??
+    state.accounts[0]?.id ??
+    "";
+  const [accountId, setAccountId] = useState(defaultAccount);
   const [error, setError] = useState<string | null>(null);
 
   async function onSubmit(e: FormEvent) {
@@ -31,10 +36,12 @@ export default function AddPage() {
       return;
     }
     const amountGrosze = Math.round(zl * 100);
-    const accountId = state.accounts.find((a) => a.includeInBudget)?.id;
-    if (!accountId) {
+    const chosen =
+      accountId ||
+      state.accounts.find((a) => a.includeInBudget)?.id;
+    if (!chosen) {
       setError(
-        "Brak konta w budżecie. Wczytaj dane demo w „Więcej” albo dodaj konto.",
+        "Brak konta. Dodaj konto w Więcej → Konta albo wczytaj dane demo.",
       );
       return;
     }
@@ -48,7 +55,7 @@ export default function AddPage() {
       paidBy: person,
       isShared: person === "shared",
       status,
-      accountId,
+      accountId: chosen,
     };
 
     try {
@@ -148,6 +155,21 @@ export default function AddPage() {
               ].map((c) => (
                 <option key={c} value={c}>
                   {c}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <Label>Konto</Label>
+            <select
+              className="mt-1 w-full rounded-xl border border-[var(--line)] bg-white px-3 py-2.5"
+              value={accountId}
+              onChange={(e) => setAccountId(e.target.value)}
+            >
+              {state.accounts.filter((a) => a.active).map((a) => (
+                <option key={a.id} value={a.id}>
+                  {a.name}
+                  {!a.includeInBudget ? " (poza budżetem)" : ""}
                 </option>
               ))}
             </select>
