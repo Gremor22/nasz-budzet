@@ -15,6 +15,6 @@
 | 5 | Cele oszczędnościowe | obniżają „bezpiecznie do wydania” tylko gdy **zarezerwowane** |
 | 6 | E-maile | niepotrzebne w Etapie 1 |
 | 7 | Git | od początku; najpierw commit Etapu 0 |
-| 8 | OCR | domyślnie **darmowy Tesseract w telefonie**; opcjonalnie OpenAI Vision; zawsze weryfikacja przed zapisem |
+| 8 | OCR | **Gemini** (darmowy limit, klucz na Vercel) → fallback **Tesseract** w telefonie; zawsze weryfikacja |
 | 9 | Język | kod EN, UI PL |
 | 10 | Dane Etapu 1 | wyłącznie demonstracyjne (fikcyjne kwoty) |

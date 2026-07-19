@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useBudget } from "@/lib/data/budget-context";
@@ -9,11 +9,13 @@ import { parseZlToGrosze } from "@/lib/data/form-options";
 import type { PersonId } from "@/lib/data/types";
 import { todayIsoWarsaw } from "@/lib/dates/today";
 import { suggestCategory, ruleFromMerchantCorrection } from "@/lib/receipts/categorize";
+import type { OcrSuggestion } from "@/lib/receipts/types";
 import {
   getReceiptImageUrl,
   loadHouseholdRules,
   markReceiptConfirmed,
   replaceReceiptItems,
+  requestOcr,
   updateReceiptReview,
   uploadReceiptPhoto,
   upsertCategoryRule,
@@ -57,6 +59,8 @@ export default function ReceiptPage() {
   const [accountId, setAccountId] = useState("");
   const [items, setItems] = useState<LineItem[]>([]);
   const [learnRule, setLearnRule] = useState(true);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
+  const galleryInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     const def =
@@ -93,7 +97,7 @@ export default function ReceiptPage() {
     if (!file || !householdId) return;
     setError(null);
     setOcrNote(null);
-    setOcrProgress(0);
+    setOcrProgress(null);
     setBusy(true);
     try {
       if (file.size > 5 * 1024 * 1024) {
@@ -108,27 +112,34 @@ export default function ReceiptPage() {
       });
       setReceiptId(id);
 
-      // Darmowy OCR w telefonie — bez klucza i bez opłat
-      const suggestion = await recognizeReceiptFree(file, setOcrProgress);
-      setOcrNote(suggestion.note ?? null);
-      if (suggestion.merchantName) setMerchant(suggestion.merchantName);
-      if (suggestion.receiptDate) setDate(suggestion.receiptDate);
-      if (suggestion.totalGrosze != null) {
-        setTotalZl((suggestion.totalGrosze / 100).toFixed(2));
+      // 1) Serwer: Gemini (darmowy limit), jeśli klucz jest na Vercel
+      // 2) Inaczej / uzupełnienie: Tesseract w telefonie
+      let suggestion: OcrSuggestion | null = null;
+      try {
+        suggestion = await requestOcr(id);
+      } catch {
+        suggestion = null;
       }
-      if (suggestion.suggestedCategory) {
-        setCategory(suggestion.suggestedCategory);
-      } else if (suggestion.merchantName) {
-        const rules = await loadHouseholdRules(householdId);
-        setCategory(suggestCategory(suggestion.merchantName, rules));
+
+      const needsClient =
+        !suggestion ||
+        suggestion.note === "use_client_tesseract" ||
+        suggestion.provider === "tesseract" ||
+        suggestion.provider === "manual" ||
+        suggestion.totalGrosze == null ||
+        !suggestion.merchantName;
+
+      if (needsClient) {
+        setOcrProgress(0);
+        const local = await recognizeReceiptFree(file, setOcrProgress);
+        suggestion = mergeSuggestions(suggestion, local);
       }
-      setItems(
-        suggestion.items.map((i) => ({
-          name: i.name,
-          totalZl: (i.totalGrosze / 100).toFixed(2),
-          category: i.categoryName ?? suggestion.suggestedCategory ?? "Inne",
-        })),
-      );
+
+      if (!suggestion) {
+        throw new Error("Nie udało się odczytać paragonu.");
+      }
+
+      applySuggestion(suggestion, householdId);
 
       await updateReceiptReview({
         receiptId: id,
@@ -137,7 +148,7 @@ export default function ReceiptPage() {
         totalGrosze: suggestion.totalGrosze ?? 0,
         suggestedCategory: suggestion.suggestedCategory ?? "Inne",
       }).catch(() => {
-        /* nie blokuj UI jeśli zapis meta się nie uda */
+        /* nie blokuj UI */
       });
 
       const signed = await getReceiptImageUrl(storagePath).catch(() => localUrl);
@@ -149,7 +160,63 @@ export default function ReceiptPage() {
     } finally {
       setBusy(false);
       setOcrProgress(null);
+      if (cameraInputRef.current) cameraInputRef.current.value = "";
+      if (galleryInputRef.current) galleryInputRef.current.value = "";
     }
+  }
+
+  function applySuggestion(suggestion: OcrSuggestion, hhId: string) {
+    const friendlyNote =
+      suggestion.note === "use_client_tesseract"
+        ? null
+        : suggestion.note;
+    setOcrNote(
+      friendlyNote ??
+        "Sprawdź pola przed zapisem — przy niewyraźnym zdjęciu odczyt może się mylić.",
+    );
+    if (suggestion.merchantName) setMerchant(suggestion.merchantName);
+    if (suggestion.receiptDate) setDate(suggestion.receiptDate);
+    if (suggestion.totalGrosze != null) {
+      setTotalZl((suggestion.totalGrosze / 100).toFixed(2));
+    }
+    if (suggestion.suggestedCategory) {
+      setCategory(suggestion.suggestedCategory);
+    } else if (suggestion.merchantName) {
+      void loadHouseholdRules(hhId).then((rules) => {
+        setCategory(suggestCategory(suggestion.merchantName!, rules));
+      });
+    }
+    setItems(
+      suggestion.items.map((i) => ({
+        name: i.name,
+        totalZl: (i.totalGrosze / 100).toFixed(2),
+        category: i.categoryName ?? suggestion.suggestedCategory ?? "Inne",
+      })),
+    );
+  }
+
+  function mergeSuggestions(
+    server: OcrSuggestion | null,
+    local: OcrSuggestion,
+  ): OcrSuggestion {
+    if (!server || server.note === "use_client_tesseract") {
+      return local;
+    }
+    return {
+      provider: server.provider === "gemini" || server.provider === "openai"
+        ? server.provider
+        : local.provider,
+      merchantName: server.merchantName ?? local.merchantName,
+      receiptDate: server.receiptDate ?? local.receiptDate,
+      totalGrosze: server.totalGrosze ?? local.totalGrosze,
+      suggestedCategory: server.suggestedCategory ?? local.suggestedCategory,
+      items: server.items.length > 0 ? server.items : local.items,
+      rawText: server.rawText ?? local.rawText,
+      note:
+        server.provider === "gemini" || server.provider === "openai"
+          ? server.note
+          : local.note,
+    };
   }
 
   async function onConfirm(e: FormEvent) {
@@ -248,21 +315,48 @@ export default function ReceiptPage() {
         <Card>
           <Label>Zdjęcie paragonu</Label>
           <p className="mt-1 text-sm text-[var(--ink-muted)]">
-            Zrób zdjęcie aparatem albo wybierz z galerii (max 5 MB).
+            Aparat albo galeria (max 5 MB). Na iPhonie to dwa osobne przyciski.
           </p>
           <input
+            ref={cameraInputRef}
             type="file"
             accept="image/*"
             capture="environment"
-            className="mt-3 w-full text-sm"
+            className="hidden"
             disabled={busy}
             onChange={(e) => void onFileChosen(e.target.files?.[0] ?? null)}
           />
+          <input
+            ref={galleryInputRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            disabled={busy}
+            onChange={(e) => void onFileChosen(e.target.files?.[0] ?? null)}
+          />
+          <div className="mt-3 flex flex-col gap-2">
+            <button
+              type="button"
+              disabled={busy}
+              className="rounded-xl bg-[var(--accent)] py-3 font-medium text-white disabled:opacity-60"
+              onClick={() => cameraInputRef.current?.click()}
+            >
+              Zrób zdjęcie
+            </button>
+            <button
+              type="button"
+              disabled={busy}
+              className="rounded-xl bg-[var(--bg-accent)] py-3 font-medium disabled:opacity-60"
+              onClick={() => galleryInputRef.current?.click()}
+            >
+              Wybierz z galerii
+            </button>
+          </div>
           {busy && (
             <p className="mt-3 text-sm text-[var(--ink-muted)]">
               {ocrProgress != null
-                ? `Odczytywanie paragonu… ${ocrProgress}% (za darmo, na telefonie)`
-                : "Wysyłanie zdjęcia…"}
+                ? `Odczytywanie paragonu… ${ocrProgress}%`
+                : "Wysyłanie i odczyt…"}
             </p>
           )}
         </Card>

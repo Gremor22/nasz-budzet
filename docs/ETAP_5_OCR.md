@@ -11,18 +11,18 @@ Zdjęcie paragonu → prywatny Storage → opcjonalny OCR (serwer) → **weryfik
 
 | Dostawca | Koszt orientacyjny | Paragony PL | Uwagi |
 |----------|-------------------|-------------|--------|
-| **Manual + reguły** (domyślne) | **0 zł** | — | Zawsze możesz uzupełnić ręcznie; zdjęcie zapisane |
-| **OpenAI Vision** (`gpt-4o-mini`) | ok. 0,01–0,03 zł / zdjęcie | Bardzo dobra struktura JSON | Wymaga `OPENAI_API_KEY` tylko na serwerze |
-| Google Cloud Vision | ~1,50 USD / 1000 obrazów | Dobra | Konto GCP + billing |
-| Azure Document Intelligence | ~1,50 USD / 1000 stron | Dobra na dokumenty | Konto Azure |
-| Tesseract (lokalnie) | 0 zł | Słabe na termiczne PL | Ciężkie na Vercel |
+| **Manual + reguły** | **0 zł** | — | Zawsze możesz uzupełnić ręcznie |
+| **Tesseract w telefonie** | **0 zł** | Średnia | Działa bez konta; słabsze przy zmiętych / zasłoniętych |
+| **Google Gemini Flash** | **0 zł w limicie free** | Bardzo dobra | Klucz z AI Studio; zalecane |
+| **OpenAI Vision** | ok. 0,01–0,03 zł / zdjęcie | Bardzo dobra | Płatne |
+| Google Cloud Vision | ~1,50 USD / 1000 | Dobra | Billing GCP |
 
 ### Decyzja MVP
 
-1. Domyślnie **darmowy Tesseract w telefonie** (`pol+eng`) — **0 zł**, bez klucza API.
-2. Zawsze weryfikacja użytkownika przed zapisem wydatku.
-3. Opcjonalnie później `OCR_PROVIDER=openai` + `OPENAI_API_KEY` na Vercel (lepsza jakość, mały koszt).
-4. Interfejs `runOcr()` / `recognizeReceiptFree()` — łatwa zamiana dostawcy.
+1. **Galeria + aparat** — dwa przyciski (iPhone nie łączy ich w jednym polu).
+2. Domyślnie: **Gemini** (jeśli `GEMINI_API_KEY` na Vercel) → inaczej **Tesseract** w telefonie.
+3. Zawsze weryfikacja przed zapisem wydatku.
+4. Heurystyki: ignoruj kody typu „727”, sumuj pozycje gdy SUMA zasłonięta.
 
 ## Co wdrożyć w Supabase
 

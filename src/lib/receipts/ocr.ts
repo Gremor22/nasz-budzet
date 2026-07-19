@@ -1,10 +1,24 @@
 import type { OcrProviderId, OcrSuggestion } from "@/lib/receipts/types";
 import { suggestCategory } from "@/lib/receipts/categorize";
+import { parseReceiptText } from "@/lib/receipts/parse-receipt-text";
 
+/**
+ * Kolejność: Gemini (darmowy limit Google) → OpenAI (płatne) → sygnał „użyj klienta”.
+ * Klucze TYLKO po stronie serwera.
+ */
 export function resolveOcrProvider(): OcrProviderId {
-  const raw = (process.env.OCR_PROVIDER ?? "tesseract").toLowerCase();
-  if (raw === "openai" && process.env.OPENAI_API_KEY) return "openai";
-  if (raw === "manual") return "manual";
+  const raw = (process.env.OCR_PROVIDER ?? "auto").toLowerCase();
+  const geminiKey =
+    process.env.GEMINI_API_KEY ?? process.env.GOOGLE_AI_API_KEY;
+  const openaiKey = process.env.OPENAI_API_KEY;
+
+  if (raw === "openai" && openaiKey) return "openai";
+  if (raw === "gemini" && geminiKey) return "gemini";
+  if (raw === "manual" || raw === "tesseract") return "tesseract";
+
+  // auto
+  if (geminiKey) return "gemini";
+  if (openaiKey) return "openai";
   return "tesseract";
 }
 
@@ -15,21 +29,93 @@ export async function runOcr(input: {
 }): Promise<OcrSuggestion> {
   const provider = input.provider ?? resolveOcrProvider();
 
+  if (provider === "gemini") {
+    return runGeminiVision(input.imageBytes, input.mimeType);
+  }
   if (provider === "openai") {
     return runOpenAiVision(input.imageBytes, input.mimeType);
   }
 
-  // Serwerowy fallback: pełny Tesseract jest w przeglądarce (lekki Vercel).
   return {
-    provider: "manual",
+    provider: "tesseract",
     merchantName: null,
     receiptDate: null,
     totalGrosze: null,
     suggestedCategory: null,
     items: [],
-    note:
-      "Odczyt darmowy działa w aplikacji na telefonie. Uzupełnij pola, jeśli nie wypełniły się same.",
+    note: "use_client_tesseract",
   };
+}
+
+async function runGeminiVision(
+  imageBytes: ArrayBuffer,
+  mimeType: string,
+): Promise<OcrSuggestion> {
+  const apiKey =
+    process.env.GEMINI_API_KEY ?? process.env.GOOGLE_AI_API_KEY;
+  if (!apiKey) {
+    return {
+      provider: "tesseract",
+      merchantName: null,
+      receiptDate: null,
+      totalGrosze: null,
+      suggestedCategory: null,
+      items: [],
+      note: "use_client_tesseract",
+    };
+  }
+
+  const model =
+    process.env.GEMINI_OCR_MODEL ?? "gemini-2.0-flash";
+  const b64 = Buffer.from(imageBytes).toString("base64");
+
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+
+  const response = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      contents: [
+        {
+          parts: [
+            {
+              text:
+                "To polski paragon fiskalny. Odczytaj dane mimo zagnieceń i ręczne napisy. " +
+                "Zwróć TYLKO JSON (bez markdown): " +
+                '{"merchantName":string|null,"receiptDate":"YYYY-MM-DD"|null,' +
+                '"totalGrosze":number|null,"items":[{"name":string,"totalGrosze":number}]}. ' +
+                "Kwoty w groszach (63,04 zł = 6304). Suma = SUMA PLN / Do zapłaty, " +
+                "NIE kod odbioru Glovo ani inne 3-cyfrowe kody. Jeśli suma zasłonięta, " +
+                "zsumuj pozycje.",
+            },
+            {
+              inline_data: {
+                mime_type: mimeType || "image/jpeg",
+                data: b64,
+              },
+            },
+          ],
+        },
+      ],
+      generationConfig: {
+        temperature: 0,
+        responseMimeType: "application/json",
+      },
+    }),
+  });
+
+  if (!response.ok) {
+    const errText = await response.text();
+    throw new Error(`Gemini OCR: ${response.status} ${errText.slice(0, 240)}`);
+  }
+
+  const json = (await response.json()) as {
+    candidates?: {
+      content?: { parts?: { text?: string }[] };
+    }[];
+  };
+  const content = json.candidates?.[0]?.content?.parts?.[0]?.text ?? "{}";
+  return parseModelJson(content, "gemini");
 }
 
 async function runOpenAiVision(
@@ -39,13 +125,13 @@ async function runOpenAiVision(
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) {
     return {
-      provider: "manual",
+      provider: "tesseract",
       merchantName: null,
       receiptDate: null,
       totalGrosze: null,
       suggestedCategory: null,
       items: [],
-      note: "Brak OPENAI_API_KEY — użyto trybu ręcznego.",
+      note: "use_client_tesseract",
     };
   }
 
@@ -69,7 +155,7 @@ async function runOpenAiVision(
             "Odczytujesz polskie paragony fiskalne. Zwróć wyłącznie JSON: " +
             '{"merchantName":string|null,"receiptDate":"YYYY-MM-DD"|null,' +
             '"totalGrosze":number|null,"items":[{"name":string,"totalGrosze":number}]}. ' +
-            "Kwoty w groszach (12,34 zł = 1234). Jeśli niepewne — null.",
+            "Kwoty w groszach (12,34 zł = 1234). Ignoruj kody odbioru. Jeśli niepewne — null.",
         },
         {
           role: "user",
@@ -91,6 +177,18 @@ async function runOpenAiVision(
     choices?: { message?: { content?: string } }[];
   };
   const content = json.choices?.[0]?.message?.content ?? "{}";
+  return parseModelJson(content, "openai");
+}
+
+function parseModelJson(
+  content: string,
+  provider: "gemini" | "openai",
+): OcrSuggestion {
+  let cleaned = content.trim();
+  if (cleaned.startsWith("```")) {
+    cleaned = cleaned.replace(/^```(?:json)?\s*/i, "").replace(/```$/, "");
+  }
+
   let parsed: {
     merchantName?: string | null;
     receiptDate?: string | null;
@@ -98,9 +196,20 @@ async function runOpenAiVision(
     items?: { name?: string; totalGrosze?: number }[];
   };
   try {
-    parsed = JSON.parse(content) as typeof parsed;
+    parsed = JSON.parse(cleaned) as typeof parsed;
   } catch {
-    throw new Error("OpenAI OCR: niepoprawny JSON w odpowiedzi");
+    // Model czasem zwraca śmieci — spróbuj heurystyk na surowym tekście
+    const fallback = parseReceiptText(content);
+    return {
+      provider,
+      ...fallback,
+      suggestedCategory: fallback.merchantName
+        ? suggestCategory(fallback.merchantName)
+        : null,
+      items: [],
+      rawText: content,
+      note: "Odczyt AI — sprawdź pola przed zapisem.",
+    };
   }
 
   const merchantName = parsed.merchantName?.trim() || null;
@@ -111,20 +220,38 @@ async function runOpenAiVision(
       totalGrosze: Math.round(Number(i.totalGrosze)),
     }));
 
-  const suggestedCategory = merchantName
-    ? suggestCategory(merchantName)
-    : null;
+  let totalGrosze =
+    typeof parsed.totalGrosze === "number"
+      ? Math.round(parsed.totalGrosze)
+      : null;
+
+  // Jeśli model podał pozycje, a suma wygląda na kod (np. 727) — zsumuj pozycje
+  if (items.length >= 2) {
+    const itemsSum = items.reduce((s, i) => s + i.totalGrosze, 0);
+    if (
+      totalGrosze == null ||
+      totalGrosze < 100 ||
+      (totalGrosze % 100 === 0 && totalGrosze < 1000 && itemsSum > totalGrosze)
+    ) {
+      // 727 groszy = 7,27 zł też możliwe; raczej 727 bez groszy = kod
+      if (totalGrosze != null && totalGrosze < 1000 && !String(totalGrosze).includes(".")) {
+        // total już w groszach: 727 = 7,27 zł — podejrzane vs suma pozycji ~6304
+        if (itemsSum > 2000 && Math.abs(itemsSum - totalGrosze) > 500) {
+          totalGrosze = itemsSum;
+        }
+      }
+    }
+    if (totalGrosze == null) totalGrosze = itemsSum;
+  }
 
   return {
-    provider: "openai",
+    provider,
     merchantName,
     receiptDate: parsed.receiptDate ?? null,
-    totalGrosze:
-      typeof parsed.totalGrosze === "number"
-        ? Math.round(parsed.totalGrosze)
-        : null,
-    suggestedCategory,
+    totalGrosze,
+    suggestedCategory: merchantName ? suggestCategory(merchantName) : null,
     items,
     rawText: content,
+    note: "Darmowy odczyt AI (Google Gemini). Sprawdź pola przed zapisem.",
   };
 }

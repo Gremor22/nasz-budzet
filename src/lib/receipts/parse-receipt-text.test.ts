@@ -31,4 +31,22 @@ Do zapłaty: 15,90
     expect(r.receiptDate).toBe("2026-07-19");
     expect(r.totalGrosze).toBe(1590);
   });
+
+  it("gdy SUMA zasłonięta kodem, sumuje pozycje z groszami", () => {
+    const text = `
+BIEDRONKA
+2024-07-14
+Hummus 4,19
+Winogrono 11,38
+Ser 6,49
+Czekolada 7,99
+SUMA PLN 727
+KOD ODBIORU 727
+GLOVO
+`;
+    const r = parseReceiptText(text);
+    expect(r.merchantName).toBe("Biedronka");
+    // 4,19+11,38+6,49+7,99 = 30,05 — bez kwoty z groszami przy SUMIE
+    expect(r.totalGrosze).toBe(3005);
+  });
 });
