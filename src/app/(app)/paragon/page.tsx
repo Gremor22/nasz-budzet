@@ -21,14 +21,11 @@ import {
   upsertCategoryRule,
 } from "@/lib/receipts/client";
 import {
-  recognizeReceiptFree,
-  recognizeTotalZone,
-} from "@/lib/receipts/tesseract-client";
-import {
   CROP_TOTAL_ZONE,
   blobToBase64,
   cropImageToBlob,
 } from "@/lib/receipts/crop-image";
+import { isTechnicalOcrNote } from "@/lib/receipts/ocr-notes";
 
 const CATEGORIES = [
   "Jedzenie",
@@ -57,7 +54,6 @@ export default function ReceiptPage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [ocrNote, setOcrNote] = useState<string | null>(null);
-  const [ocrProgress, setOcrProgress] = useState<number | null>(null);
 
   const [merchant, setMerchant] = useState("");
   const [date, setDate] = useState(todayIsoWarsaw());
@@ -106,7 +102,6 @@ export default function ReceiptPage() {
     if (!file || !householdId) return;
     setError(null);
     setOcrNote(null);
-    setOcrProgress(null);
     setBusy(true);
     try {
       if (file.size > 5 * 1024 * 1024) {
@@ -122,36 +117,34 @@ export default function ReceiptPage() {
       });
       setReceiptId(id);
 
-      // Pierwszy odczyt bez drugiego zdjęcia (mniej zużycia limitu Gemini).
-      // Fokus na sumę: przycisk „Popraw odczyt sumy”.
-      let suggestion: OcrSuggestion | null = null;
+      // V1: tylko Gemini (JSON Schema) → ekran zatwierdzenia. Bez Tesseract.
+      let suggestion: OcrSuggestion;
       try {
         suggestion = await requestOcr(id);
       } catch {
-        suggestion = null;
+        suggestion = {
+          provider: "manual",
+          merchantName: null,
+          receiptDate: null,
+          totalGrosze: null,
+          suggestedCategory: null,
+          items: [],
+          note: "manual_after_error",
+        };
       }
 
-      const cloudOk = Boolean(
-        suggestion &&
-          (suggestion.provider === "gemini" ||
-            suggestion.provider === "openai") &&
-          suggestion.note !== "use_client_tesseract",
-      );
-
-      const needsClient =
-        !suggestion ||
-        !cloudOk ||
-        suggestion.totalGrosze == null ||
-        !suggestion.merchantName;
-
-      if (needsClient) {
-        setOcrProgress(0);
-        const local = await recognizeReceiptFree(file, setOcrProgress);
-        suggestion = mergeSuggestions(suggestion, local);
-      }
-
-      if (!suggestion) {
-        throw new Error("Nie udało się odczytać paragonu.");
+      if (
+        suggestion.note === "manual_after_quota" ||
+        suggestion.note === "manual_after_error" ||
+        suggestion.provider === "manual"
+      ) {
+        suggestion = {
+          ...suggestion,
+          note:
+            suggestion.note === "manual_after_quota"
+              ? "Limit darmowego AI chwilowo wyczerpany. Uzupełnij pola ze zdjęcia — za kilka minut możesz spróbować „Popraw odczyt sumy”."
+              : "Nie udało się odczytać automatycznie. Uzupełnij pola na podstawie zdjęcia, potem potwierdź.",
+        };
       }
 
       applySuggestion(suggestion, householdId);
@@ -174,25 +167,18 @@ export default function ReceiptPage() {
       setStep("pick");
     } finally {
       setBusy(false);
-      setOcrProgress(null);
       if (cameraInputRef.current) cameraInputRef.current.value = "";
       if (galleryInputRef.current) galleryInputRef.current.value = "";
     }
   }
 
   function applySuggestion(suggestion: OcrSuggestion, hhId: string) {
-    const rawNote =
-      suggestion.note === "use_client_tesseract" ? null : suggestion.note;
-    const looksTechnical =
-      !!rawNote &&
-      (/\b429\b/.test(rawNote) ||
-        /Gemini OCR|OpenAI OCR|quota|api key/i.test(rawNote));
-
+    const rawNote = suggestion.note;
     setOcrNote(
-      looksTechnical
-        ? "Limit darmowego AI na dziś — użyto odczytu w telefonie. Sprawdź sumę (przycisk poniżej pomaga)."
+      isTechnicalOcrNote(rawNote)
+        ? "Limit darmowego AI chwilowo wyczerpany. Uzupełnij pola ze zdjęcia i potwierdź."
         : (rawNote ??
-            "Sprawdź pola przed zapisem — przy niewyraźnym zdjęciu odczyt może się mylić."),
+            "Sprawdź sklep, datę i sumę — wydatek zapisze się dopiero po potwierdzeniu."),
     );
     if (suggestion.merchantName) setMerchant(suggestion.merchantName);
     if (suggestion.receiptDate) setDate(suggestion.receiptDate);
@@ -213,43 +199,6 @@ export default function ReceiptPage() {
         category: i.categoryName ?? suggestion.suggestedCategory ?? "Inne",
       })),
     );
-  }
-
-  function mergeSuggestions(
-    server: OcrSuggestion | null,
-    local: OcrSuggestion,
-  ): OcrSuggestion {
-    if (
-      !server ||
-      server.note === "use_client_tesseract" ||
-      server.provider === "tesseract" ||
-      server.provider === "manual"
-    ) {
-      return local;
-    }
-    const serverBroken =
-      server.totalGrosze == null &&
-      !server.merchantName &&
-      (!!server.note &&
-        (/\b429\b/.test(server.note) || /OCR:/i.test(server.note)));
-    if (serverBroken) return local;
-
-    return {
-      provider:
-        server.provider === "gemini" || server.provider === "openai"
-          ? server.provider
-          : local.provider,
-      merchantName: server.merchantName ?? local.merchantName,
-      receiptDate: server.receiptDate ?? local.receiptDate,
-      totalGrosze: server.totalGrosze ?? local.totalGrosze,
-      suggestedCategory: server.suggestedCategory ?? local.suggestedCategory,
-      items: server.items.length > 0 ? server.items : local.items,
-      rawText: server.rawText ?? local.rawText,
-      note:
-        server.provider === "gemini" || server.provider === "openai"
-          ? server.note
-          : local.note,
-    };
   }
 
   async function onConfirm(e: FormEvent) {
@@ -333,52 +282,41 @@ export default function ReceiptPage() {
   }
 
   async function rereadTotalFocus() {
-    if (!sourceFile) {
+    if (!sourceFile || !receiptId) {
       setError("Brak zdjęcia do ponownego odczytu.");
       return;
     }
     setError(null);
     setBusy(true);
-    setOcrProgress(0);
     try {
-      let total: number | null = null;
+      const crop = await cropImageToBlob(sourceFile, CROP_TOTAL_ZONE);
+      const focusTotalBase64 = await blobToBase64(crop);
+      const again = await requestOcr(receiptId, {
+        focusTotalBase64,
+        focusMimeType: "image/jpeg",
+      });
 
-      if (receiptId) {
-        try {
-          const crop = await cropImageToBlob(sourceFile, CROP_TOTAL_ZONE);
-          const focusTotalBase64 = await blobToBase64(crop);
-          const again = await requestOcr(receiptId, {
-            focusTotalBase64,
-            focusMimeType: "image/jpeg",
-          });
-          if (again.provider === "gemini" || again.provider === "openai") {
-            total = again.totalGrosze;
-            if (again.note) setOcrNote(again.note);
-          }
-        } catch {
-          /* fallback lokalny */
-        }
-      }
-
-      if (total == null) {
-        total = await recognizeTotalZone(sourceFile, setOcrProgress);
-      }
-
-      if (total == null) {
+      if (
+        again.note === "manual_after_quota" ||
+        again.provider === "manual" ||
+        again.totalGrosze == null
+      ) {
         setError(
-          "Nie odczytano sumy z dolnego fragmentu. Wpisz kwotę ręcznie ze zdjęcia.",
+          "AI nie odczytało sumy (limit lub błąd). Wpisz kwotę ręcznie ze zdjęcia.",
         );
         return;
       }
-      setTotalZl((total / 100).toFixed(2));
+
+      setTotalZl((again.totalGrosze / 100).toFixed(2));
+      if (again.merchantName) setMerchant(again.merchantName);
+      if (again.receiptDate) setDate(again.receiptDate);
       setOcrNote(
-        "Ponowny odczyt tylko dolnego fragmentu (strefa sumy). Sprawdź, czy kwota się zgadza.",
+        "Ponowny odczyt Gemini ze skupieniem na dolnym fragmencie. Sprawdź sumę przed zapisem.",
       );
     } catch (err) {
       setError(err instanceof Error ? err.message : "Błąd odczytu sumy");
     } finally {
       setBusy(false);
-      setOcrProgress(null);
     }
   }
 
@@ -390,7 +328,7 @@ export default function ReceiptPage() {
         </Link>
         <h1 className="mt-1 text-2xl font-semibold">Paragon</h1>
         <p className="text-sm text-[var(--ink-muted)]">
-          Zdjęcie → darmowy odczyt → Twoja weryfikacja → dopiero potem wydatek.
+          Zdjęcie → Gemini → Twoja weryfikacja → dopiero potem wydatek.
         </p>
       </header>
 
@@ -437,9 +375,7 @@ export default function ReceiptPage() {
           </div>
           {busy && (
             <p className="mt-3 text-sm text-[var(--ink-muted)]">
-              {ocrProgress != null
-                ? `Odczytywanie paragonu… ${ocrProgress}%`
-                : "Wysyłanie i odczyt…"}
+              Wysyłanie i odczyt AI… To może chwilę potrwać.
             </p>
           )}
         </Card>

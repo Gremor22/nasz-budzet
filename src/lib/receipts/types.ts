@@ -14,7 +14,7 @@
  * Zamiana: OCR_PROVIDER=manual|openai
  */
 
-export type OcrProviderId = "manual" | "openai" | "tesseract" | "gemini";
+export type OcrProviderId = "manual" | "openai" | "gemini";
 
 export interface OcrLineItem {
   name: string;

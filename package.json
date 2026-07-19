@@ -17,8 +17,7 @@
     "next": "^15.5.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
-    "recharts": "^3.9.2",
-    "tesseract.js": "^7.0.0"
+    "recharts": "^3.9.2"
   },
   "devDependencies": {
     "@next/eslint-plugin-next": "^16.2.10",

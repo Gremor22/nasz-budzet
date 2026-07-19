@@ -4,6 +4,21 @@ Wszystkie istotne zmiany w projekcie zapisujemy tutaj po każdym etapie.
 
 ---
 
+## 2026-07-19 — Paragony V1: Gemini 2.5 Flash + JSON Schema
+
+### Zakres
+
+- Domyślny OCR: Gemini 2.5 Flash przez `/api/receipts/ocr` ze structured output
+- Usunięty Tesseract ze ścieżki produktu
+- Obowiązkowa weryfikacja przed zapisem transakcji
+- Cele jakości i plan testów 30–50 paragonów w `docs/ETAP_5_OCR.md`
+
+### Zmiany bazy
+
+- Brak
+
+---
+
 ## 2026-07-19 — Cele CRUD + Etap 5: paragony
 
 ### Zakres

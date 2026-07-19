@@ -79,20 +79,19 @@ export async function POST(request: Request) {
         .from("receipts")
         .update({
           status: "review",
-          ocr_provider: "tesseract",
+          ocr_provider: "manual",
           ocr_error: quotaHit ? "gemini_quota" : msg.slice(0, 500),
         })
         .eq("id", receipt.id);
 
-      // Cisza dla klienta → telefon zrobi Tesseract; bez straszenia JSON-em
       return NextResponse.json({
-        provider: "tesseract",
+        provider: "manual",
         merchantName: null,
         receiptDate: null,
         totalGrosze: null,
         suggestedCategory: null,
         items: [],
-        note: "use_client_tesseract",
+        note: quotaHit ? "manual_after_quota" : "manual_after_error",
         quotaExceeded: quotaHit,
       });
     }
