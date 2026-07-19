@@ -92,6 +92,8 @@ export interface Transaction {
   accountId: string;
   /** Links a one-off income confirmation; optional. */
   incomeSourceId?: string;
+  /** Linked receipt (Etap 5); optional. */
+  receiptId?: string;
   note?: string;
   createdAt: string;
   updatedAt: string;

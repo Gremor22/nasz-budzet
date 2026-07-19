@@ -4,6 +4,27 @@ Wszystkie istotne zmiany w projekcie zapisujemy tutaj po każdym etapie.
 
 ---
 
+## 2026-07-19 — Cele CRUD + Etap 5: paragony
+
+### Zakres
+
+- Pełne zarządzanie celami (nazwa, kwoty, rezerwacja, właściciel, termin)
+- Paragony: upload do prywatnego Storage, OCR (manual / opcjonalnie OpenAI), ekran weryfikacji, zapis wydatku dopiero po potwierdzeniu
+- Reguły kategorii + zapamiętywanie po poprawce
+- Porównanie dostawców OCR w `docs/ETAP_5_OCR.md`
+
+### Zmiany bazy
+
+- Migracja: `supabase/migrations/20260719180000_stage5_receipts.sql`
+  (`receipts`, `receipt_items`, `classification_rules`, bucket `receipts`, `transactions.receipt_id`)
+
+### Znane ograniczenia
+
+- Bez klucza OpenAI OCR jest trybem ręcznym (zdjęcie + formularz)
+- Pozycje paragonu są zapisane; w saldzie liczy się suma paragonu jako jedna transakcja
+
+---
+
 ## 2026-07-19 — Etap 4: analityka
 
 ### Zakres

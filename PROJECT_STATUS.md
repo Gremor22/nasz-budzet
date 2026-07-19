@@ -1,7 +1,7 @@
 # Status projektu — Nasz Budżet
 
 **Ostatnia aktualizacja:** 19 lipca 2026  
-**Obecny etap:** Etap 4 — analityka (podstawowa)  
+**Obecny etap:** Etap 5 — paragony / OCR (wymaga migracji SQL)  
 **URL testowy:** https://nasz-budzet.vercel.app  
 **Repozytorium:** https://github.com/Gremor22/nasz-budzet
 
@@ -9,17 +9,21 @@
 
 ## Funkcje działające
 
-- Etapy 1–3 + PWA + Vercel
-- **Analityka:** okresy, sumy, kategorie (wykres), osoby, wspólne/osobiste
-- 21 testów Vitest
+- Etapy 1–4 + PWA + Vercel
+- **Cele:** pełne dodawanie / edycja / usuwanie (Więcej → Cele)
+- **Paragony:** zdjęcie → Storage → OCR (manual lub OpenAI) → weryfikacja → wydatek
+- Reguły kategorii (domyślne + uczenie z poprawek)
 
-## Później
+## Twoja czynność teraz
 
-- Hierarchia kategorii i limity
-- Paragony (Etap 5)
+1. Wklej w Supabase SQL Editor plik  
+   `supabase/migrations/20260719180000_stage5_receipts.sql`
+2. (Opcjonalnie) na Vercel dodaj `OCR_PROVIDER=openai` + `OPENAI_API_KEY`
 
-## Test Etapu 4
+## Test Etapu 5
 
-1. Więcej → Analityka  
-2. Przełącz okresy (7 dni / miesiąc / …)  
-3. Sprawdź sumy i wykres kategorii  
+1. Dodaj → Zeskanuj paragon  
+2. Wybierz zdjęcie → popraw pola → Potwierdź  
+3. Sprawdź Transakcje  
+
+Szczegóły: `docs/ETAP_5_OCR.md`

@@ -15,6 +15,6 @@
 | 5 | Cele oszczędnościowe | obniżają „bezpiecznie do wydania” tylko gdy **zarezerwowane** |
 | 6 | E-maile | niepotrzebne w Etapie 1 |
 | 7 | Git | od początku; najpierw commit Etapu 0 |
-| 8 | OCR | decyzja i porównanie w Etapie 5; klucz API tylko po stronie serwera |
+| 8 | OCR | domyślnie **manual** (0 zł); opcjonalnie **OpenAI Vision** (`OCR_PROVIDER=openai` + klucz tylko na serwerze); porównanie w `docs/ETAP_5_OCR.md` |
 | 9 | Język | kod EN, UI PL |
 | 10 | Dane Etapu 1 | wyłącznie demonstracyjne (fikcyjne kwoty) |

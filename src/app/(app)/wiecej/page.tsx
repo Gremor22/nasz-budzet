@@ -48,6 +48,7 @@ export default function MorePage() {
             { href: "/konta", label: "Konta" },
             { href: "/dochody", label: "Źródła dochodu" },
             { href: "/rachunki", label: "Rachunki cykliczne" },
+            { href: "/cele", label: "Cele oszczędnościowe" },
           ].map((item) => (
             <Link
               key={item.href}
@@ -156,16 +157,26 @@ export default function MorePage() {
 
       <Card>
         <Label>Cele</Label>
+        <p className="mt-1 text-sm text-[var(--ink-muted)]">
+          Dodawaj i edytuj cele w osobnym ekranie. Tu tylko szybki podgląd.
+        </p>
+        <Link
+          href="/cele"
+          className="mt-3 block rounded-xl bg-[var(--bg-accent)] px-3 py-3 text-sm font-medium"
+        >
+          Zarządzaj celami →
+        </Link>
         {state.savingsGoals.length === 0 ? (
           <p className="mt-2 text-sm text-[var(--ink-muted)]">Brak celów.</p>
         ) : (
           <ul className="mt-2 divide-y divide-[var(--line)]">
-            {state.savingsGoals.map((g) => (
+            {state.savingsGoals.slice(0, 3).map((g) => (
               <li key={g.id} className="flex items-center justify-between gap-2 py-2 text-sm">
                 <div>
                   <p className="font-medium">{g.name}</p>
                   <p className="text-[var(--ink-muted)]">
                     zebrane <Money grosze={g.savedAmountGrosze} size="sm" />
+                    {g.reserved ? " · zarezerwowane" : ""}
                   </p>
                 </div>
                 <label className="flex items-center gap-2 text-xs">

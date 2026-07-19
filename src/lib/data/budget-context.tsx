@@ -16,6 +16,7 @@ import {
   type AccountInput,
   type IncomeSourceInput,
   type RecurringBillInput,
+  type SavingsGoalInput,
 } from "@/lib/data/supabase-repository";
 import type {
   BudgetState,
@@ -39,10 +40,10 @@ interface BudgetContextValue {
   refresh: () => Promise<void>;
   addExpense: (
     input: Omit<Transaction, "id" | "createdAt" | "updatedAt" | "type">,
-  ) => Promise<void>;
+  ) => Promise<string>;
   addIncome: (
     input: Omit<Transaction, "id" | "createdAt" | "updatedAt" | "type">,
-  ) => Promise<void>;
+  ) => Promise<string>;
   changeMode: (mode: ForecastMode) => Promise<void>;
   changeHorizon: (days: number) => Promise<void>;
   changeBufferZl: (zl: number) => Promise<void>;
@@ -55,6 +56,8 @@ interface BudgetContextValue {
   ) => Promise<void>;
   removeRecurringBill: (id: string) => Promise<void>;
   setGoalReserved: (id: string, reserved: boolean) => Promise<void>;
+  saveSavingsGoal: (input: SavingsGoalInput & { id?: string }) => Promise<void>;
+  removeSavingsGoal: (id: string) => Promise<void>;
   seedDemo: () => Promise<void>;
   createInviteCode: () => Promise<string>;
   signOut: () => Promise<void>;
@@ -171,45 +174,49 @@ export function BudgetProvider({ children }: { children: ReactNode }) {
       const repo = await withRepo();
       if (!repo) {
         const now = new Date().toISOString();
+        const id = `tx-${crypto.randomUUID()}`;
         setState((prev) => ({
           ...prev,
           transactions: [
             {
               ...input,
               type: "expense",
-              id: `tx-${crypto.randomUUID()}`,
+              id,
               createdAt: now,
               updatedAt: now,
             },
             ...prev.transactions,
           ],
         }));
-        return;
+        return id;
       }
-      await repo.addTransaction({ ...input, type: "expense" });
+      const id = await repo.addTransaction({ ...input, type: "expense" });
       await refresh();
+      return id;
     },
     addIncome: async (input) => {
       const repo = await withRepo();
       if (!repo) {
         const now = new Date().toISOString();
+        const id = `tx-${crypto.randomUUID()}`;
         setState((prev) => ({
           ...prev,
           transactions: [
             {
               ...input,
               type: "income",
-              id: `tx-${crypto.randomUUID()}`,
+              id,
               createdAt: now,
               updatedAt: now,
             },
             ...prev.transactions,
           ],
         }));
-        return;
+        return id;
       }
-      await repo.addTransaction({ ...input, type: "income" });
+      const id = await repo.addTransaction({ ...input, type: "income" });
       await refresh();
+      return id;
     },
     changeMode: async (mode) => {
       setState((prev) => ({
@@ -361,6 +368,43 @@ export function BudgetProvider({ children }: { children: ReactNode }) {
         return;
       }
       await repo.setGoalReserved(id, reserved);
+      await refresh();
+    },
+    saveSavingsGoal: async (input) => {
+      const repo = await withRepo();
+      if (!repo) {
+        setState((prev) => {
+          if (input.id) {
+            return {
+              ...prev,
+              savingsGoals: prev.savingsGoals.map((g) =>
+                g.id === input.id ? { ...g, ...input, id: input.id } : g,
+              ),
+            };
+          }
+          return {
+            ...prev,
+            savingsGoals: [
+              ...prev.savingsGoals,
+              { ...input, id: `goal-${crypto.randomUUID()}` },
+            ],
+          };
+        });
+        return;
+      }
+      await repo.upsertSavingsGoal(input);
+      await refresh();
+    },
+    removeSavingsGoal: async (id) => {
+      const repo = await withRepo();
+      if (!repo) {
+        setState((prev) => ({
+          ...prev,
+          savingsGoals: prev.savingsGoals.filter((g) => g.id !== id),
+        }));
+        return;
+      }
+      await repo.deleteSavingsGoal(id);
       await refresh();
     },
     seedDemo: async () => {

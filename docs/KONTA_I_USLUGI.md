@@ -77,4 +77,4 @@ Możesz użyć:
 - [ ] Supabase (Etap 2)
 - [ ] Vercel (Etap 7)
 - [ ] 2 e-maile testowe
-- [ ] (Opcjonalnie) dostawca OCR — decyzja w Etapie 5
+- [x] (Opcjonalnie) dostawca OCR — Etap 5: manual (domyślnie) / OpenAI Vision

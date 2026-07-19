@@ -9,12 +9,21 @@ import {
   type DbSavingsGoal,
   type DbTransaction,
 } from "@/lib/data/mappers";
-import type { BudgetState, ForecastMode, Transaction, Account, IncomeSource, RecurringBill } from "@/lib/data/types";
+import type {
+  BudgetState,
+  ForecastMode,
+  Transaction,
+  Account,
+  IncomeSource,
+  RecurringBill,
+  SavingsGoal,
+} from "@/lib/data/types";
 import { todayIsoWarsaw } from "@/lib/dates/today";
 
 export type AccountInput = Omit<Account, "id">;
 export type IncomeSourceInput = Omit<IncomeSource, "id">;
 export type RecurringBillInput = Omit<RecurringBill, "id">;
+export type SavingsGoalInput = Omit<SavingsGoal, "id">;
 
 /**
  * Repozytorium Supabase — ten sam kształt danych co localStorage.
@@ -74,29 +83,35 @@ export class SupabaseBudgetRepository {
 
   async addTransaction(
     input: Omit<Transaction, "id" | "createdAt" | "updatedAt">,
-  ): Promise<void> {
+  ): Promise<string> {
     const {
       data: { user },
     } = await this.supabase.auth.getUser();
 
-    const { error } = await this.supabase.from("transactions").insert({
-      household_id: this.householdId,
-      account_id: input.accountId,
-      type: input.type,
-      amount_grosze: input.amountGrosze,
-      txn_date: input.date,
-      description: input.description,
-      category_name: input.category,
-      person_key: input.person,
-      paid_by: input.paidBy,
-      is_shared: input.isShared,
-      status: input.status,
-      income_source_id: input.incomeSourceId ?? null,
-      note: input.note ?? null,
-      created_by: user?.id ?? null,
-    });
+    const { data, error } = await this.supabase
+      .from("transactions")
+      .insert({
+        household_id: this.householdId,
+        account_id: input.accountId,
+        type: input.type,
+        amount_grosze: input.amountGrosze,
+        txn_date: input.date,
+        description: input.description,
+        category_name: input.category,
+        person_key: input.person,
+        paid_by: input.paidBy,
+        is_shared: input.isShared,
+        status: input.status,
+        income_source_id: input.incomeSourceId ?? null,
+        receipt_id: input.receiptId ?? null,
+        note: input.note ?? null,
+        created_by: user?.id ?? null,
+      })
+      .select("id")
+      .single();
 
     if (error) throw new Error(error.message);
+    return data.id as string;
   }
 
   async updateHouseholdSettings(input: {
@@ -237,6 +252,41 @@ export class SupabaseBudgetRepository {
     const { error } = await this.supabase
       .from("savings_goals")
       .update({ reserved })
+      .eq("id", id)
+      .eq("household_id", this.householdId);
+    if (error) throw new Error(error.message);
+  }
+
+  async upsertSavingsGoal(
+    input: SavingsGoalInput & { id?: string },
+  ): Promise<void> {
+    const row = {
+      household_id: this.householdId,
+      name: input.name,
+      target_amount_grosze: input.targetAmountGrosze,
+      saved_amount_grosze: input.savedAmountGrosze,
+      reserved: input.reserved,
+      owner_key: input.owner,
+      deadline: input.deadline ?? null,
+      active: input.active,
+    };
+    if (input.id) {
+      const { error } = await this.supabase
+        .from("savings_goals")
+        .update(row)
+        .eq("id", input.id)
+        .eq("household_id", this.householdId);
+      if (error) throw new Error(error.message);
+      return;
+    }
+    const { error } = await this.supabase.from("savings_goals").insert(row);
+    if (error) throw new Error(error.message);
+  }
+
+  async deleteSavingsGoal(id: string): Promise<void> {
+    const { error } = await this.supabase
+      .from("savings_goals")
+      .delete()
       .eq("id", id)
       .eq("household_id", this.householdId);
     if (error) throw new Error(error.message);

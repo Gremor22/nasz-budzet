@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useBudget } from "@/lib/data/budget-context";
 import { Card, Label } from "@/components/ui";
@@ -81,6 +82,15 @@ export default function AddPage() {
           Zapis w {dataSource === "supabase" ? "Supabase (wspólny)" : "przeglądarce"}.
         </p>
       </header>
+
+      {dataSource === "supabase" && (
+        <Link
+          href="/paragon"
+          className="rounded-xl bg-[var(--accent-soft)] px-3 py-3 text-center text-sm font-medium text-[var(--accent)]"
+        >
+          Zeskanuj paragon (zdjęcie) →
+        </Link>
+      )}
 
       <div className="flex gap-2">
         <button
