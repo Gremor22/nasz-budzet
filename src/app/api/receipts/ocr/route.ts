@@ -10,7 +10,11 @@ import { suggestCategory } from "@/lib/receipts/categorize";
  */
 export async function POST(request: Request) {
   try {
-    const body = (await request.json()) as { receiptId?: string };
+    const body = (await request.json()) as {
+      receiptId?: string;
+      focusTotalBase64?: string;
+      focusMimeType?: string;
+    };
     if (!body.receiptId) {
       return NextResponse.json({ error: "Brak receiptId" }, { status: 400 });
     }
@@ -59,7 +63,12 @@ export async function POST(request: Request) {
 
     let suggestion;
     try {
-      suggestion = await runOcr({ imageBytes, mimeType });
+      suggestion = await runOcr({
+        imageBytes,
+        mimeType,
+        focusTotalBase64: body.focusTotalBase64,
+        focusMimeType: body.focusMimeType,
+      });
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Błąd OCR";
       await supabase

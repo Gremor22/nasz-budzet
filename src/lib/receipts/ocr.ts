@@ -26,11 +26,19 @@ export async function runOcr(input: {
   imageBytes: ArrayBuffer;
   mimeType: string;
   provider?: OcrProviderId;
+  /** Przycięty dół paragonu (base64 bez prefixu data:) — fokus na SUMA */
+  focusTotalBase64?: string;
+  focusMimeType?: string;
 }): Promise<OcrSuggestion> {
   const provider = input.provider ?? resolveOcrProvider();
 
   if (provider === "gemini") {
-    return runGeminiVision(input.imageBytes, input.mimeType);
+    return runGeminiVision(
+      input.imageBytes,
+      input.mimeType,
+      input.focusTotalBase64,
+      input.focusMimeType,
+    );
   }
   if (provider === "openai") {
     return runOpenAiVision(input.imageBytes, input.mimeType);
@@ -50,6 +58,8 @@ export async function runOcr(input: {
 async function runGeminiVision(
   imageBytes: ArrayBuffer,
   mimeType: string,
+  focusTotalBase64?: string,
+  focusMimeType?: string,
 ): Promise<OcrSuggestion> {
   const apiKey =
     process.env.GEMINI_API_KEY ?? process.env.GOOGLE_AI_API_KEY;
@@ -71,32 +81,41 @@ async function runGeminiVision(
 
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
 
+  const parts: Record<string, unknown>[] = [
+    {
+      text:
+        "To polski paragon fiskalny. " +
+        (focusTotalBase64
+          ? "Pierwsze zdjęcie = cały paragon. Drugie = DOLNY FRAGMENT skupiony na linii SUMA PLN / Do zapłaty. " +
+            "Kwotę totalGrosze bierz Z DRUGIEGO zdjęcia (suma), nie z kodu odbioru Glovo (np. 727). "
+          : "Odczytaj dane mimo zagnieceń i ręcznych napisów. ") +
+        "Zwróć TYLKO JSON: " +
+        '{"merchantName":string|null,"receiptDate":"YYYY-MM-DD"|null,' +
+        '"totalGrosze":number|null,"items":[{"name":string,"totalGrosze":number}]}. ' +
+        "Kwoty w groszach (63,04 zł = 6304). Ignoruj kody odbioru. Jeśli suma zasłonięta — zsumuj pozycje.",
+    },
+    {
+      inline_data: {
+        mime_type: mimeType || "image/jpeg",
+        data: b64,
+      },
+    },
+  ];
+
+  if (focusTotalBase64) {
+    parts.push({
+      inline_data: {
+        mime_type: focusMimeType || "image/jpeg",
+        data: focusTotalBase64,
+      },
+    });
+  }
+
   const response = await fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      contents: [
-        {
-          parts: [
-            {
-              text:
-                "To polski paragon fiskalny. Odczytaj dane mimo zagnieceń i ręczne napisy. " +
-                "Zwróć TYLKO JSON (bez markdown): " +
-                '{"merchantName":string|null,"receiptDate":"YYYY-MM-DD"|null,' +
-                '"totalGrosze":number|null,"items":[{"name":string,"totalGrosze":number}]}. ' +
-                "Kwoty w groszach (63,04 zł = 6304). Suma = SUMA PLN / Do zapłaty, " +
-                "NIE kod odbioru Glovo ani inne 3-cyfrowe kody. Jeśli suma zasłonięta, " +
-                "zsumuj pozycje.",
-            },
-            {
-              inline_data: {
-                mime_type: mimeType || "image/jpeg",
-                data: b64,
-              },
-            },
-          ],
-        },
-      ],
+      contents: [{ parts }],
       generationConfig: {
         temperature: 0,
         responseMimeType: "application/json",
@@ -115,7 +134,13 @@ async function runGeminiVision(
     }[];
   };
   const content = json.candidates?.[0]?.content?.parts?.[0]?.text ?? "{}";
-  return parseModelJson(content, "gemini");
+  const result = parseModelJson(content, "gemini");
+  return {
+    ...result,
+    note: focusTotalBase64
+      ? "Odczyt AI ze skupieniem na dolnym fragmencie (suma). Sprawdź pola przed zapisem."
+      : result.note,
+  };
 }
 
 async function runOpenAiVision(

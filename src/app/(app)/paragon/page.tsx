@@ -20,7 +20,15 @@ import {
   uploadReceiptPhoto,
   upsertCategoryRule,
 } from "@/lib/receipts/client";
-import { recognizeReceiptFree } from "@/lib/receipts/tesseract-client";
+import {
+  recognizeReceiptFree,
+  recognizeTotalZone,
+} from "@/lib/receipts/tesseract-client";
+import {
+  CROP_TOTAL_ZONE,
+  blobToBase64,
+  cropImageToBlob,
+} from "@/lib/receipts/crop-image";
 
 const CATEGORIES = [
   "Jedzenie",
@@ -59,6 +67,7 @@ export default function ReceiptPage() {
   const [accountId, setAccountId] = useState("");
   const [items, setItems] = useState<LineItem[]>([]);
   const [learnRule, setLearnRule] = useState(true);
+  const [sourceFile, setSourceFile] = useState<File | null>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const galleryInputRef = useRef<HTMLInputElement>(null);
 
@@ -105,6 +114,7 @@ export default function ReceiptPage() {
       }
       const localUrl = URL.createObjectURL(file);
       setPreviewUrl(localUrl);
+      setSourceFile(file);
 
       const { receiptId: id, storagePath } = await uploadReceiptPhoto({
         householdId,
@@ -112,20 +122,35 @@ export default function ReceiptPage() {
       });
       setReceiptId(id);
 
-      // 1) Serwer: Gemini (darmowy limit), jeśli klucz jest na Vercel
-      // 2) Inaczej / uzupełnienie: Tesseract w telefonie
+      // Przytnij dół paragonu = strefa SUMA (fokus dla AI / uzupełnienie)
+      let focusTotalBase64: string | undefined;
+      try {
+        const crop = await cropImageToBlob(file, CROP_TOTAL_ZONE);
+        focusTotalBase64 = await blobToBase64(crop);
+      } catch {
+        focusTotalBase64 = undefined;
+      }
+
       let suggestion: OcrSuggestion | null = null;
       try {
-        suggestion = await requestOcr(id);
+        suggestion = await requestOcr(id, {
+          focusTotalBase64,
+          focusMimeType: "image/jpeg",
+        });
       } catch {
         suggestion = null;
       }
 
+      const cloudOk = Boolean(
+        suggestion &&
+          (suggestion.provider === "gemini" ||
+            suggestion.provider === "openai") &&
+          suggestion.note !== "use_client_tesseract",
+      );
+
       const needsClient =
         !suggestion ||
-        suggestion.note === "use_client_tesseract" ||
-        suggestion.provider === "tesseract" ||
-        suggestion.provider === "manual" ||
+        !cloudOk ||
         suggestion.totalGrosze == null ||
         !suggestion.merchantName;
 
@@ -299,6 +324,56 @@ export default function ReceiptPage() {
     }
   }
 
+  async function rereadTotalFocus() {
+    if (!sourceFile) {
+      setError("Brak zdjęcia do ponownego odczytu.");
+      return;
+    }
+    setError(null);
+    setBusy(true);
+    setOcrProgress(0);
+    try {
+      let total: number | null = null;
+
+      if (receiptId) {
+        try {
+          const crop = await cropImageToBlob(sourceFile, CROP_TOTAL_ZONE);
+          const focusTotalBase64 = await blobToBase64(crop);
+          const again = await requestOcr(receiptId, {
+            focusTotalBase64,
+            focusMimeType: "image/jpeg",
+          });
+          if (again.provider === "gemini" || again.provider === "openai") {
+            total = again.totalGrosze;
+            if (again.note) setOcrNote(again.note);
+          }
+        } catch {
+          /* fallback lokalny */
+        }
+      }
+
+      if (total == null) {
+        total = await recognizeTotalZone(sourceFile, setOcrProgress);
+      }
+
+      if (total == null) {
+        setError(
+          "Nie odczytano sumy z dolnego fragmentu. Wpisz kwotę ręcznie ze zdjęcia.",
+        );
+        return;
+      }
+      setTotalZl((total / 100).toFixed(2));
+      setOcrNote(
+        "Ponowny odczyt tylko dolnego fragmentu (strefa sumy). Sprawdź, czy kwota się zgadza.",
+      );
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Błąd odczytu sumy");
+    } finally {
+      setBusy(false);
+      setOcrProgress(null);
+    }
+  }
+
   return (
     <div className="flex flex-col gap-4">
       <header>
@@ -409,6 +484,14 @@ export default function ReceiptPage() {
                   value={totalZl}
                   onChange={(e) => setTotalZl(e.target.value)}
                 />
+                <button
+                  type="button"
+                  disabled={busy || !sourceFile}
+                  className="mt-2 w-full rounded-xl bg-[var(--bg-accent)] py-2 text-sm font-medium disabled:opacity-60"
+                  onClick={() => void rereadTotalFocus()}
+                >
+                  Popraw odczyt sumy (skupienie na dole paragonu)
+                </button>
               </div>
               <div>
                 <Label>Kategoria</Label>

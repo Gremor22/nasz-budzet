@@ -81,11 +81,18 @@ export async function getReceiptImageUrl(storagePath: string): Promise<string> {
   return data.signedUrl;
 }
 
-export async function requestOcr(receiptId: string): Promise<OcrSuggestion> {
+export async function requestOcr(
+  receiptId: string,
+  opts?: { focusTotalBase64?: string; focusMimeType?: string },
+): Promise<OcrSuggestion> {
   const res = await fetch("/api/receipts/ocr", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ receiptId }),
+    body: JSON.stringify({
+      receiptId,
+      focusTotalBase64: opts?.focusTotalBase64,
+      focusMimeType: opts?.focusMimeType,
+    }),
   });
   const body = (await res.json()) as OcrSuggestion & { error?: string };
   if (!res.ok) throw new Error(body.error ?? "Błąd OCR");
