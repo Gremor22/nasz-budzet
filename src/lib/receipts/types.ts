@@ -1,20 +1,11 @@
 /**
- * Porównanie dostawców OCR — decyzja Etapu 5.
- * Klucze API wyłącznie po stronie serwera (nigdy NEXT_PUBLIC_*).
- *
- * | Dostawca | Koszt (orient.) | PL / paragony | Uwagi |
- * |----------|-----------------|---------------|--------|
- * | Manual + reguły (domyślne) | 0 zł | — | Zawsze weryfikacja; zdjęcie w Storage |
- * | OpenAI Vision (gpt-4o-mini) | ~0,01–0,03 zł / zdjęcie | Bardzo dobra struktura JSON | Wymaga OPENAI_API_KEY |
- * | Google Cloud Vision | ~1,50 USD / 1000 | Dobra | Konto GCP, billing |
- * | Azure Document Intelligence | ~1,50 USD / 1000 stron | Dobra na dokumenty | Konto Azure |
- * | Tesseract (lokalnie) | 0 zł | Słabe na termiczne PL | Ciężkie na Vercel |
- *
- * Wybór MVP: `manual` (zawsze) + opcjonalnie `openai` gdy jest klucz.
- * Zamiana: OCR_PROVIDER=manual|openai
+ * OCR V1: Gemini 2.5 Flash + weryfikacja.
+ * Klucze API wyłącznie po stronie serwera.
  */
 
 export type OcrProviderId = "manual" | "openai" | "gemini";
+
+export type OcrFailureKind = "quota" | "config" | "api" | null;
 
 export interface OcrLineItem {
   name: string;
@@ -31,6 +22,8 @@ export interface OcrSuggestion {
   items: OcrLineItem[];
   rawText?: string;
   note?: string;
+  /** Dlaczego padło na ręczny formularz — do komunikatu UI */
+  failureKind?: OcrFailureKind;
 }
 
 export interface ClassificationRule {

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { runOcr } from "@/lib/receipts/ocr";
+import { runOcr, classifyGeminiError } from "@/lib/receipts/ocr";
 import { suggestCategory } from "@/lib/receipts/categorize";
 
 /**
@@ -71,16 +71,14 @@ export async function POST(request: Request) {
       });
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Błąd OCR";
-      const quotaHit =
-        /\b429\b/i.test(msg) ||
-        /quota|rate.?limit|resource.?exhausted/i.test(msg);
+      const failureKind = classifyGeminiError(msg);
 
       await supabase
         .from("receipts")
         .update({
           status: "review",
           ocr_provider: "manual",
-          ocr_error: quotaHit ? "gemini_quota" : msg.slice(0, 500),
+          ocr_error: msg.slice(0, 500),
         })
         .eq("id", receipt.id);
 
@@ -91,8 +89,14 @@ export async function POST(request: Request) {
         totalGrosze: null,
         suggestedCategory: null,
         items: [],
-        note: quotaHit ? "manual_after_quota" : "manual_after_error",
-        quotaExceeded: quotaHit,
+        note:
+          failureKind === "quota"
+            ? "manual_after_quota"
+            : failureKind === "config"
+              ? "manual_after_config"
+              : "manual_after_error",
+        failureKind,
+        quotaExceeded: failureKind === "quota",
       });
     }
 

@@ -9,7 +9,7 @@ import { parseZlToGrosze } from "@/lib/data/form-options";
 import type { PersonId } from "@/lib/data/types";
 import { todayIsoWarsaw } from "@/lib/dates/today";
 import { suggestCategory, ruleFromMerchantCorrection } from "@/lib/receipts/categorize";
-import type { OcrSuggestion } from "@/lib/receipts/types";
+import type { OcrSuggestion, OcrFailureKind } from "@/lib/receipts/types";
 import {
   getReceiptImageUrl,
   loadHouseholdRules,
@@ -26,6 +26,32 @@ import {
   cropImageToBlob,
 } from "@/lib/receipts/crop-image";
 import { isTechnicalOcrNote } from "@/lib/receipts/ocr-notes";
+
+function messageForFailure(kind: OcrFailureKind): string {
+  if (kind === "quota") {
+    return "Limit darmowego Gemini chwilowo wyczerpany (to nie wina zdjęcia). Odczekaj 1–15 min albo wpisz sumę ręcznie (~63 zł na tym paragonie).";
+  }
+  if (kind === "config") {
+    return "Brak lub zły klucz GEMINI_API_KEY na Vercel. Sprawdź Environment Variables i zrób Redeploy.";
+  }
+  return "Odczyt AI nie wyszedł. Uzupełnij pola ze zdjęcia i potwierdź — albo spróbuj za chwilę „Popraw odczyt sumy”.";
+}
+
+function inferFailureFromNote(note?: string): OcrFailureKind {
+  if (!note) return null;
+  if (note === "manual_after_quota") return "quota";
+  if (note === "manual_after_config" || /Brak klucza|GEMINI_API_KEY/i.test(note)) {
+    return "config";
+  }
+  if (
+    note === "manual_after_error" ||
+    isTechnicalOcrNote(note) ||
+    note.startsWith("Nie udało")
+  ) {
+    return "api";
+  }
+  return null;
+}
 
 const CATEGORIES = [
   "Jedzenie",
@@ -117,7 +143,7 @@ export default function ReceiptPage() {
       });
       setReceiptId(id);
 
-      // V1: tylko Gemini (JSON Schema) → ekran zatwierdzenia. Bez Tesseract.
+      // V1: tylko Gemini → ekran zatwierdzenia
       let suggestion: OcrSuggestion;
       try {
         suggestion = await requestOcr(id);
@@ -130,20 +156,16 @@ export default function ReceiptPage() {
           suggestedCategory: null,
           items: [],
           note: "manual_after_error",
+          failureKind: "api",
         };
       }
 
-      if (
-        suggestion.note === "manual_after_quota" ||
-        suggestion.note === "manual_after_error" ||
-        suggestion.provider === "manual"
-      ) {
+      const kind = suggestion.failureKind ?? inferFailureFromNote(suggestion.note);
+      if (suggestion.provider === "manual" || kind) {
         suggestion = {
           ...suggestion,
-          note:
-            suggestion.note === "manual_after_quota"
-              ? "Limit darmowego AI chwilowo wyczerpany. Uzupełnij pola ze zdjęcia — za kilka minut możesz spróbować „Popraw odczyt sumy”."
-              : "Nie udało się odczytać automatycznie. Uzupełnij pola na podstawie zdjęcia, potem potwierdź.",
+          note: messageForFailure(kind ?? "api"),
+          failureKind: kind ?? "api",
         };
       }
 
@@ -173,12 +195,9 @@ export default function ReceiptPage() {
   }
 
   function applySuggestion(suggestion: OcrSuggestion, hhId: string) {
-    const rawNote = suggestion.note;
     setOcrNote(
-      isTechnicalOcrNote(rawNote)
-        ? "Limit darmowego AI chwilowo wyczerpany. Uzupełnij pola ze zdjęcia i potwierdź."
-        : (rawNote ??
-            "Sprawdź sklep, datę i sumę — wydatek zapisze się dopiero po potwierdzeniu."),
+      suggestion.note ??
+        "Sprawdź sklep, datę i sumę — wydatek zapisze się dopiero po potwierdzeniu.",
     );
     if (suggestion.merchantName) setMerchant(suggestion.merchantName);
     if (suggestion.receiptDate) setDate(suggestion.receiptDate);

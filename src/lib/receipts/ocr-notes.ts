@@ -6,6 +6,7 @@ export function isTechnicalOcrNote(note: string | null | undefined): boolean {
     note === "use_client_tesseract" ||
     note === "manual_after_quota" ||
     note === "manual_after_error" ||
+    note === "manual_after_config" ||
     /\b429\b/.test(note) ||
     /quota|rate.?limit|Gemini OCR|OpenAI OCR/i.test(note)
   );

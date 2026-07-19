@@ -1,10 +1,8 @@
-import type { OcrProviderId, OcrSuggestion } from "@/lib/receipts/types";
+import type { OcrProviderId, OcrSuggestion, OcrFailureKind } from "@/lib/receipts/types";
 import { suggestCategory } from "@/lib/receipts/categorize";
 
 /**
- * V1 OCR (rekomendacja produktu):
- * Gemini 2.5 Flash → Vercel API Route → JSON Schema → ekran zatwierdzenia → zapis.
- * Bez Tesseract / Cloud Vision na start. Klucz tylko po stronie serwera.
+ * V1 OCR: Gemini 2.5 Flash → API Route → JSON Schema → weryfikacja → zapis.
  */
 export function resolveOcrProvider(): OcrProviderId {
   const raw = (process.env.OCR_PROVIDER ?? "gemini").toLowerCase();
@@ -19,25 +17,25 @@ export function resolveOcrProvider(): OcrProviderId {
   return "manual";
 }
 
-/** JSON Schema dla structured output Gemini (REST). */
+/**
+ * Schema bez `nullable` — część modeli Gemini odrzuca nullable w REST.
+ * Puste wartości: "" / 0 / [].
+ */
 export const RECEIPT_OCR_SCHEMA = {
   type: "OBJECT",
   properties: {
     merchantName: {
       type: "STRING",
-      nullable: true,
-      description: "Nazwa sklepu / sprzedawcy, np. Biedronka, Lidl",
+      description: "Nazwa sklepu, np. Biedronka. Pusty string jeśli niepewne.",
     },
     receiptDate: {
       type: "STRING",
-      nullable: true,
-      description: "Data paragonu YYYY-MM-DD",
+      description: "Data YYYY-MM-DD. Pusty string jeśli niepewne.",
     },
     totalGrosze: {
       type: "INTEGER",
-      nullable: true,
       description:
-        "Suma do zapłaty w groszach (63,04 zł = 6304). NIE kod odbioru Glovo.",
+        "Suma do zapłaty w groszach (63,04 zł = 6304). 0 jeśli niepewne. NIE kod Glovo.",
     },
     items: {
       type: "ARRAY",
@@ -76,11 +74,15 @@ export async function runOcr(input: {
   }
 
   return emptyManual(
-    "Brak klucza GEMINI_API_KEY. Uzupełnij pola ręcznie na podstawie zdjęcia.",
+    "Brak klucza GEMINI_API_KEY na Vercel. Dodaj klucz i zrób Redeploy.",
+    "config",
   );
 }
 
-function emptyManual(note: string): OcrSuggestion {
+function emptyManual(
+  note: string,
+  failureKind: OcrFailureKind = "config",
+): OcrSuggestion {
   return {
     provider: "manual",
     merchantName: null,
@@ -89,6 +91,7 @@ function emptyManual(note: string): OcrSuggestion {
     suggestedCategory: null,
     items: [],
     note,
+    failureKind,
   };
 }
 
@@ -102,31 +105,28 @@ async function runGeminiVision(
     process.env.GEMINI_API_KEY ?? process.env.GOOGLE_AI_API_KEY;
   if (!apiKey) {
     return emptyManual(
-      "Brak klucza GEMINI_API_KEY na serwerze. Uzupełnij pola ręcznie.",
+      "Brak klucza GEMINI_API_KEY na Vercel. Dodaj klucz i zrób Redeploy.",
+      "config",
     );
   }
 
   const model = process.env.GEMINI_OCR_MODEL ?? "gemini-2.5-flash";
-  const b64 = Buffer.from(imageBytes).toString("base64");
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+  const prompt =
+    "Jesteś OCR polskich paragonów fiskalnych. " +
+    "Wypełnij pola: merchantName, receiptDate (YYYY-MM-DD), totalGrosze (grosze!), items. " +
+    "Priorytet: sklep, data, SUMA PLN. Ignoruj kody odbioru (Glovo 727), NIP, kasę. " +
+    "63,04 zł = 6304. Jeśli SUMA zasłonięta — zsumuj pozycje. " +
+    "Gdy niepewne: merchantName=\"\", receiptDate=\"\", totalGrosze=0. " +
+    (focusTotalBase64
+      ? "Drugie zdjęcie = dolny fragment (suma) — totalGrosze bierz stamtąd. "
+      : "");
 
   const parts: Record<string, unknown>[] = [
-    {
-      text:
-        "Jesteś OCR polskich paragonów fiskalnych dla aplikacji budżetowej. " +
-        "Priorytet: poprawny sklep, data, SUMA PLN (totalGrosze). " +
-        "Ignoruj kody odbioru (np. Glovo 727), numery NIP, numery kasy. " +
-        "Kwoty w groszach: 63,04 zł = 6304. " +
-        "Jeśli SUMA jest zasłonięta — policz z pozycji. " +
-        "Pozycje: nazwa + kwota; drobne błędy nazw są OK. " +
-        (focusTotalBase64
-          ? "Drugie zdjęcie to DOLNY fragment (strefa sumy) — totalGrosze bierz stamtąd. "
-          : ""),
-    },
+    { text: prompt },
     {
       inline_data: {
         mime_type: mimeType || "image/jpeg",
-        data: b64,
+        data: Buffer.from(imageBytes).toString("base64"),
       },
     },
   ];
@@ -140,37 +140,66 @@ async function runGeminiVision(
     });
   }
 
-  const response = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      contents: [{ parts }],
-      generationConfig: {
-        temperature: 0,
-        responseMimeType: "application/json",
-        responseSchema: RECEIPT_OCR_SCHEMA,
+  // 1) Ze schema, 2) bez schema przy 400
+  let lastError = "";
+  for (const withSchema of [true, false]) {
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contents: [{ parts }],
+          generationConfig: {
+            temperature: 0,
+            responseMimeType: "application/json",
+            ...(withSchema ? { responseSchema: RECEIPT_OCR_SCHEMA } : {}),
+          },
+        }),
       },
-    }),
-  });
+    );
 
-  if (!response.ok) {
+    if (response.ok) {
+      const json = (await response.json()) as {
+        candidates?: {
+          content?: { parts?: { text?: string }[] };
+          finishReason?: string;
+        }[];
+        promptFeedback?: { blockReason?: string };
+      };
+
+      if (json.promptFeedback?.blockReason) {
+        throw new Error(
+          `Gemini OCR: zablokowane (${json.promptFeedback.blockReason})`,
+        );
+      }
+
+      const content =
+        json.candidates?.[0]?.content?.parts?.[0]?.text ?? "{}";
+      const result = parseModelJson(content, "gemini");
+      return {
+        ...result,
+        note: focusTotalBase64
+          ? "Gemini (fokus na sumę). Sprawdź i potwierdź przed zapisem."
+          : "Gemini 2.5 Flash. Sprawdź sklep, datę i sumę — zapis dopiero po potwierdzeniu.",
+        failureKind: null,
+      };
+    }
+
     const errText = await response.text();
-    throw new Error(`Gemini OCR: ${response.status} ${errText.slice(0, 240)}`);
+    lastError = `${response.status} ${errText.slice(0, 280)}`;
+
+    // Quota — nie ma sensu retry bez schema
+    if (response.status === 429) {
+      throw new Error(`Gemini OCR: ${lastError}`);
+    }
+    // Inny błąd przy schema → spróbuj bez; przy drugim przebiegu rzuć
+    if (!withSchema || response.status !== 400) {
+      throw new Error(`Gemini OCR: ${lastError}`);
+    }
   }
 
-  const json = (await response.json()) as {
-    candidates?: {
-      content?: { parts?: { text?: string }[] };
-    }[];
-  };
-  const content = json.candidates?.[0]?.content?.parts?.[0]?.text ?? "{}";
-  const result = parseModelJson(content, "gemini");
-  return {
-    ...result,
-    note: focusTotalBase64
-      ? "Gemini 2.5 Flash (fokus na sumę). Sprawdź i potwierdź przed zapisem."
-      : "Gemini 2.5 Flash. Sprawdź sklep, datę i sumę — zapis dopiero po Twoim potwierdzeniu.",
-  };
+  throw new Error(`Gemini OCR: ${lastError}`);
 }
 
 async function runOpenAiVision(
@@ -179,7 +208,7 @@ async function runOpenAiVision(
 ): Promise<OcrSuggestion> {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) {
-    return emptyManual("Brak OPENAI_API_KEY. Uzupełnij pola ręcznie.");
+    return emptyManual("Brak OPENAI_API_KEY.", "config");
   }
 
   const b64 = Buffer.from(imageBytes).toString("base64");
@@ -200,9 +229,9 @@ async function runOpenAiVision(
           role: "system",
           content:
             "Odczytujesz polskie paragony. JSON: " +
-            '{"merchantName":string|null,"receiptDate":"YYYY-MM-DD"|null,' +
-            '"totalGrosze":number|null,"items":[{"name":string,"totalGrosze":number}]}. ' +
-            "Kwoty w groszach. Ignoruj kody odbioru.",
+            '{"merchantName":string,"receiptDate":"YYYY-MM-DD"|string,' +
+            '"totalGrosze":number,"items":[{"name":string,"totalGrosze":number}]}. ' +
+            "Kwoty w groszach. Ignoruj kody odbioru. Puste = \"\" / 0.",
         },
         {
           role: "user",
@@ -248,11 +277,17 @@ function parseModelJson(
     parsed = JSON.parse(cleaned) as typeof parsed;
   } catch {
     return emptyManual(
-      "AI zwróciło nieczytelny wynik. Uzupełnij pola ręcznie na podstawie zdjęcia.",
+      "AI zwróciło nieczytelny wynik. Uzupełnij pola ręcznie.",
+      "api",
     );
   }
 
   const merchantName = parsed.merchantName?.trim() || null;
+  const receiptDate =
+    parsed.receiptDate && /^\d{4}-\d{2}-\d{2}$/.test(parsed.receiptDate)
+      ? parsed.receiptDate
+      : null;
+
   const items = (parsed.items ?? [])
     .filter((i) => i.name && typeof i.totalGrosze === "number")
     .map((i) => ({
@@ -261,7 +296,7 @@ function parseModelJson(
     }));
 
   let totalGrosze =
-    typeof parsed.totalGrosze === "number"
+    typeof parsed.totalGrosze === "number" && parsed.totalGrosze > 0
       ? Math.round(parsed.totalGrosze)
       : null;
 
@@ -274,7 +309,6 @@ function parseModelJson(
       totalGrosze < 1000 &&
       Math.abs(itemsSum - totalGrosze) > 500
     ) {
-      // Podejrzenie: model wziął kod (727) zamiast sumy
       totalGrosze = itemsSum;
     }
   }
@@ -282,11 +316,22 @@ function parseModelJson(
   return {
     provider,
     merchantName,
-    receiptDate: parsed.receiptDate ?? null,
+    receiptDate,
     totalGrosze,
     suggestedCategory: merchantName ? suggestCategory(merchantName) : null,
     items,
     rawText: content,
     note: "Sprawdź pola przed zapisem — wydatek powstanie dopiero po potwierdzeniu.",
+    failureKind: null,
   };
+}
+
+export function classifyGeminiError(message: string): OcrFailureKind {
+  if (/\b429\b|quota|rate.?limit|resource.?exhausted/i.test(message)) {
+    return "quota";
+  }
+  if (/API_KEY|api key|Brak klucza|403/i.test(message)) {
+    return "config";
+  }
+  return "api";
 }
