@@ -19,10 +19,10 @@ Zdjęcie paragonu → prywatny Storage → opcjonalny OCR (serwer) → **weryfik
 
 ### Decyzja MVP
 
-1. Domyślnie `OCR_PROVIDER=manual` — **0 zł**, weryfikacja ręczna na podstawie zdjęcia.
-2. Opcjonalnie `OCR_PROVIDER=openai` + `OPENAI_API_KEY` na Vercel (nie w przeglądarce).
-3. Interfejs `runOcr()` — łatwa zamiana dostawcy bez przepisywania UI.
-4. **Nigdy** nie zapisujemy transakcji bez potwierdzenia na ekranie weryfikacji.
+1. Domyślnie **darmowy Tesseract w telefonie** (`pol+eng`) — **0 zł**, bez klucza API.
+2. Zawsze weryfikacja użytkownika przed zapisem wydatku.
+3. Opcjonalnie później `OCR_PROVIDER=openai` + `OPENAI_API_KEY` na Vercel (lepsza jakość, mały koszt).
+4. Interfejs `runOcr()` / `recognizeReceiptFree()` — łatwa zamiana dostawcy.
 
 ## Co wdrożyć w Supabase
 

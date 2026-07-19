@@ -14,11 +14,11 @@ import {
   loadHouseholdRules,
   markReceiptConfirmed,
   replaceReceiptItems,
-  requestOcr,
   updateReceiptReview,
   uploadReceiptPhoto,
   upsertCategoryRule,
 } from "@/lib/receipts/client";
+import { recognizeReceiptFree } from "@/lib/receipts/tesseract-client";
 
 const CATEGORIES = [
   "Jedzenie",
@@ -47,6 +47,7 @@ export default function ReceiptPage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [ocrNote, setOcrNote] = useState<string | null>(null);
+  const [ocrProgress, setOcrProgress] = useState<number | null>(null);
 
   const [merchant, setMerchant] = useState("");
   const [date, setDate] = useState(todayIsoWarsaw());
@@ -92,6 +93,7 @@ export default function ReceiptPage() {
     if (!file || !householdId) return;
     setError(null);
     setOcrNote(null);
+    setOcrProgress(0);
     setBusy(true);
     try {
       if (file.size > 5 * 1024 * 1024) {
@@ -106,7 +108,8 @@ export default function ReceiptPage() {
       });
       setReceiptId(id);
 
-      const suggestion = await requestOcr(id);
+      // Darmowy OCR w telefonie — bez klucza i bez opłat
+      const suggestion = await recognizeReceiptFree(file, setOcrProgress);
       setOcrNote(suggestion.note ?? null);
       if (suggestion.merchantName) setMerchant(suggestion.merchantName);
       if (suggestion.receiptDate) setDate(suggestion.receiptDate);
@@ -127,6 +130,16 @@ export default function ReceiptPage() {
         })),
       );
 
+      await updateReceiptReview({
+        receiptId: id,
+        merchantName: suggestion.merchantName ?? "",
+        receiptDate: suggestion.receiptDate ?? todayIsoWarsaw(),
+        totalGrosze: suggestion.totalGrosze ?? 0,
+        suggestedCategory: suggestion.suggestedCategory ?? "Inne",
+      }).catch(() => {
+        /* nie blokuj UI jeśli zapis meta się nie uda */
+      });
+
       const signed = await getReceiptImageUrl(storagePath).catch(() => localUrl);
       setPreviewUrl(signed);
       setStep("review");
@@ -135,6 +148,7 @@ export default function ReceiptPage() {
       setStep("pick");
     } finally {
       setBusy(false);
+      setOcrProgress(null);
     }
   }
 
@@ -226,7 +240,7 @@ export default function ReceiptPage() {
         </Link>
         <h1 className="mt-1 text-2xl font-semibold">Paragon</h1>
         <p className="text-sm text-[var(--ink-muted)]">
-          Zdjęcie → propozycja OCR → Twoja weryfikacja → dopiero potem wydatek.
+          Zdjęcie → darmowy odczyt → Twoja weryfikacja → dopiero potem wydatek.
         </p>
       </header>
 
@@ -246,7 +260,9 @@ export default function ReceiptPage() {
           />
           {busy && (
             <p className="mt-3 text-sm text-[var(--ink-muted)]">
-              Wysyłanie i odczyt… To może chwilę potrwać.
+              {ocrProgress != null
+                ? `Odczytywanie paragonu… ${ocrProgress}% (za darmo, na telefonie)`
+                : "Wysyłanie zdjęcia…"}
             </p>
           )}
         </Card>

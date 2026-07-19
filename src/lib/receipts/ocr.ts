@@ -2,9 +2,10 @@ import type { OcrProviderId, OcrSuggestion } from "@/lib/receipts/types";
 import { suggestCategory } from "@/lib/receipts/categorize";
 
 export function resolveOcrProvider(): OcrProviderId {
-  const raw = (process.env.OCR_PROVIDER ?? "manual").toLowerCase();
+  const raw = (process.env.OCR_PROVIDER ?? "tesseract").toLowerCase();
   if (raw === "openai" && process.env.OPENAI_API_KEY) return "openai";
-  return "manual";
+  if (raw === "manual") return "manual";
+  return "tesseract";
 }
 
 export async function runOcr(input: {
@@ -18,6 +19,7 @@ export async function runOcr(input: {
     return runOpenAiVision(input.imageBytes, input.mimeType);
   }
 
+  // Serwerowy fallback: pełny Tesseract jest w przeglądarce (lekki Vercel).
   return {
     provider: "manual",
     merchantName: null,
@@ -26,7 +28,7 @@ export async function runOcr(input: {
     suggestedCategory: null,
     items: [],
     note:
-      "Tryb ręczny: uzupełnij pola na podstawie zdjęcia. Aby włączyć OCR AI, ustaw OCR_PROVIDER=openai i OPENAI_API_KEY po stronie serwera.",
+      "Odczyt darmowy działa w aplikacji na telefonie. Uzupełnij pola, jeśli nie wypełniły się same.",
   };
 }
 
