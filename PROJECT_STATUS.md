@@ -1,7 +1,7 @@
 # Status projektu — Nasz Budżet
 
 **Ostatnia aktualizacja:** 19 lipca 2026  
-**Obecny etap:** Etap 1 — lokalny prototyp (**zakończony**)
+**Obecny etap:** Etap 1 zakończony · **przygotowanie Etapu 2 (plan — bez bazy)**
 
 ---
 
@@ -14,18 +14,19 @@
 - Bufor bezpieczeństwa (demo = 0 zł)
 - Dane demonstracyjne w localStorage (warstwa `BudgetRepository`)
 - 14 testów Vitest logiki prognozy
+- Etap 1 przetestowany ręcznie przez użytkownika
 
 ## Funkcje niedziałające
 
-- Logowanie / Supabase
+- Logowanie / Supabase (plan gotowy, implementacja nie rozpoczęta)
 - Zaproszenia do gospodarstwa
 - OCR / paragony
 - PWA / wdrożenie Vercel
-- Pełna analityka i zarządzanie kategoriami
 
 ## Kolejne planowane zadanie
 
-**Etap 2 — Supabase i logowanie** (po poleceniu użytkownika)
+Po akceptacji planu: **Etap 2 — Supabase i logowanie**  
+Dokumenty: `docs/ETAP_2_PLAN.md`, `docs/SUPABASE_KONTO.md`
 
 ## Instrukcja uruchomienia
 
@@ -35,20 +36,14 @@ npm install
 npm run dev
 ```
 
-Otwórz w przeglądarce adres z terminala (zwykle http://localhost:3000).
+Otwórz http://localhost:3000 (lub adres z terminala).
 
-Testy: `npm test`  
-Build: `npm run build`
+```bash
+npm test
+npm run build
+```
 
 ## Zmienne środowiskowe
 
-Etap 1: **brak** (prototyp lokalny).
-
-## Dokumentacja
-
-| Plik | Zawartość |
-|------|-----------|
-| `docs/ETAP_0_PLAN.md` | Plan |
-| `docs/DECYZJE.md` | Zatwierdzone decyzje |
-| `docs/ETAP_1_ZAKRES.md` | Zakres Etapu 1 |
-| `CHANGELOG.md` | Rejestr zmian |
+Etap 1: brak.  
+Etap 2 (później): `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` w `.env.local` (nie w Git).

@@ -4,6 +4,28 @@ Wszystkie istotne zmiany w projekcie zapisujemy tutaj po każdym etapie.
 
 ---
 
+## 2026-07-19 — Przygotowanie Etapu 2 (tylko plan)
+
+### Zakres
+
+- Plan Etapu 2 bez tworzenia bazy i bez kodu Auth
+- Instrukcja założenia konta Supabase
+
+### Dokumentacja
+
+- `docs/ETAP_2_PLAN.md` — cel, schemat tabel, RLS, kryteria ukończenia
+- `docs/SUPABASE_KONTO.md` — krok po kroku: konto i pusty projekt
+
+### Zmiany bazy
+
+- **Brak** (celowo — czeka na akceptację planu)
+
+### Znane ograniczenia
+
+- Brak implementacji logowania do czasu akceptacji
+
+---
+
 ## 2026-07-19 — Etap 1: lokalny prototyp
 
 ### Zakres
