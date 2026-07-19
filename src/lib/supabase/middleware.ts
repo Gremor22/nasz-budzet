@@ -38,7 +38,11 @@ export async function updateSession(request: NextRequest) {
     path.startsWith("/rejestracja") ||
     path.startsWith("/auth");
   const isPublicAsset =
-    path.startsWith("/_next") || path === "/favicon.ico";
+    path.startsWith("/_next") ||
+    path === "/favicon.ico" ||
+    path === "/manifest.webmanifest" ||
+    path === "/apple-touch-icon.png" ||
+    path.startsWith("/icons/");
 
   if (!user && !isAuthPage && !isPublicAsset) {
     const redirectUrl = request.nextUrl.clone();
