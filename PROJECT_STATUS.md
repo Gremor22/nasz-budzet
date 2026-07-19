@@ -1,46 +1,45 @@
 # Status projektu — Nasz Budżet
 
 **Ostatnia aktualizacja:** 19 lipca 2026  
-**Obecny etap:** Etap 2 — Supabase i logowanie (**kod gotowy; czekamy na wklejenie migracji + .env.local**)
+**Obecny etap:** Etap 2 + wdrożenie testowe Vercel (**OK na iPhonie**)  
+**URL testowy:** https://nasz-budzet.vercel.app  
+**Repozytorium:** https://github.com/Gremor22/nasz-budzet
 
 ---
 
-## Funkcje działające (lokalnie / po konfiguracji)
+## Funkcje działające
 
-- Etap 1: prognoza, UI, testy
-- Etap 2 (po migracji + kluczach):
-  - rejestracja / logowanie / wylogowanie
-  - utworzenie gospodarstwa / dołączenie kodem
-  - wspólne dane przez Supabase + RLS
-  - zaproszenia, seed danych demo (fikcyjnych)
+- Prognoza, UI mobilny, testy Vitest
+- Rejestracja / logowanie / wylogowanie (Supabase Auth)
+- Gospodarstwo + zaproszenia kodem + RLS
+- Wspólne dane na dwóch kontach / przeglądarkach
+- Wdrożenie testowe Vercel (bez service_role)
+- Dostęp z iPhone (Safari) bez lokalnego `npm run dev`
 
-## Funkcje niedziałające
+## Funkcje niedziałające / później
 
-- OCR / paragony
-- PWA / Vercel
-- Pełna analityka
+- Etap 3: pełniejszy budżet (konta, cykle, ostrzeżenia)
+- Etap 4: kategorie i analityka
+- Etap 5: paragony / OCR
+- Etap 6: PWA (dodaj do ekranu początkowego)
+- Etap 7: stabilizacja produkcyjna
 
-## Co musisz zrobić Ty
-
-1. Wkleić SQL z `supabase/migrations/20260719150000_stage2_core.sql` w SQL Editor
-2. Wyłączyć Confirm email (na czas testów)
-3. Skopiować `.env.example` → `.env.local` i uzupełnić URL + **anon** key
-4. `npm run dev` i przetestować dwa konta
-
-## Instrukcja uruchomienia
+## Uruchomienie lokalne
 
 ```bash
 cd ~/Desktop/BudgetPlanner
-cp .env.example .env.local   # uzupełnij klucze
+cp .env.example .env.local   # jeśli jeszcze nie ma
 npm install
 npm run dev
 ```
 
 ## Zmienne środowiskowe
 
+Lokalnie (`.env.local`) i na Vercel (Environment Variables):
+
 ```env
 NEXT_PUBLIC_SUPABASE_URL=
 NEXT_PUBLIC_SUPABASE_ANON_KEY=
 ```
 
-**Nie** dodawaj `service_role` do przeglądarki ani do Gita.
+**Nie** używaj `service_role` w przeglądarce ani w Git.

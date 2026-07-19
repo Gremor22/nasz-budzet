@@ -4,6 +4,22 @@ Wszystkie istotne zmiany w projekcie zapisujemy tutaj po każdym etapie.
 
 ---
 
+## 2026-07-19 — Wdrożenie testowe Vercel
+
+### Zakres
+
+- Publikacja `Gremor22/nasz-budzet` na Vercel (Hobby)
+- Zmienne: tylko `NEXT_PUBLIC_SUPABASE_URL` + `NEXT_PUBLIC_SUPABASE_ANON_KEY` (bez service_role)
+- Site URL / Redirect URLs w Supabase pod `https://nasz-budzet.vercel.app`
+- Test rejestracji i logowania na iPhonie — potwierdzony przez użytkownika
+
+### Znane ograniczenia
+
+- To wersja testowa (nie pełne PWA / nie Etap 3)
+- Adres: https://nasz-budzet.vercel.app
+
+---
+
 ## 2026-07-19 — Etap 2: Supabase Auth + RLS (kod)
 
 ### Zakres
