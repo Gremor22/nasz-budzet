@@ -3,10 +3,12 @@
 import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { useBudget } from "@/lib/data/budget-context";
 import { Card, Label } from "@/components/ui";
 
 export default function OnboardingPage() {
   const router = useRouter();
+  const { refresh, signOut } = useBudget();
   const [mode, setMode] = useState<"create" | "join">("create");
   const [name, setName] = useState("Paweł i Milena");
   const [code, setCode] = useState("");
@@ -19,6 +21,15 @@ export default function OnboardingPage() {
     setLoading(true);
     try {
       const supabase = createClient();
+      const {
+        data: { user },
+        error: userError,
+      } = await supabase.auth.getUser();
+      if (userError || !user) {
+        setError("Sesja wygasła. Zaloguj się ponownie.");
+        return;
+      }
+
       const { data, error: rpcError } = await supabase.rpc("create_household", {
         p_name: name.trim(),
       });
@@ -26,7 +37,13 @@ export default function OnboardingPage() {
         setError(rpcError.message);
         return;
       }
-      void data;
+      if (!data) {
+        setError("Nie udało się utworzyć gospodarstwa (brak odpowiedzi).");
+        return;
+      }
+
+      // Ważne: odśwież kontekst, inaczej bramka znowu wróci na onboarding
+      await refresh();
       router.replace("/");
       router.refresh();
     } catch (err) {
@@ -49,6 +66,7 @@ export default function OnboardingPage() {
         setError(rpcError.message);
         return;
       }
+      await refresh();
       router.replace("/");
       router.refresh();
     } catch (err) {
@@ -71,7 +89,9 @@ export default function OnboardingPage() {
         <button
           type="button"
           className={`flex-1 rounded-xl py-2.5 text-sm font-medium ${
-            mode === "create" ? "bg-[var(--accent)] text-white" : "bg-[var(--bg-accent)]"
+            mode === "create"
+              ? "bg-[var(--accent)] text-white"
+              : "bg-[var(--bg-accent)]"
           }`}
           onClick={() => setMode("create")}
         >
@@ -80,7 +100,9 @@ export default function OnboardingPage() {
         <button
           type="button"
           className={`flex-1 rounded-xl py-2.5 text-sm font-medium ${
-            mode === "join" ? "bg-[var(--accent)] text-white" : "bg-[var(--bg-accent)]"
+            mode === "join"
+              ? "bg-[var(--accent)] text-white"
+              : "bg-[var(--bg-accent)]"
           }`}
           onClick={() => setMode("join")}
         >
@@ -100,7 +122,8 @@ export default function OnboardingPage() {
                 required
               />
               <p className="mt-1 text-xs text-[var(--ink-muted)]">
-                Propozycja demo: „Paweł i Milena” — bez prawdziwych danych finansowych.
+                Propozycja demo: „Paweł i Milena” — bez prawdziwych danych
+                finansowych.
               </p>
             </div>
             {error && (
@@ -143,6 +166,14 @@ export default function OnboardingPage() {
           </form>
         )}
       </Card>
+
+      <button
+        type="button"
+        className="w-full rounded-xl border border-[var(--line)] py-2.5 text-sm text-[var(--ink-muted)]"
+        onClick={() => void signOut()}
+      >
+        Wyloguj i spróbuj innym kontem
+      </button>
     </div>
   );
 }

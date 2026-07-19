@@ -94,6 +94,7 @@ export function BudgetProvider({ children }: { children: ReactNode }) {
       .from("household_members")
       .select("household_id")
       .eq("user_id", user.id)
+      .order("created_at", { ascending: true })
       .limit(1)
       .maybeSingle();
 
@@ -110,14 +111,24 @@ export function BudgetProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    const repo = new SupabaseBudgetRepository(supabase, membership.household_id);
-    const loaded = await repo.load();
-    // Lokalne ustawienia sesji (tryb) mogą nadpisać — start z HH
-    loaded.settings.asOfDate = todayIsoWarsaw();
-    setState(loaded);
-    setHouseholdId(membership.household_id);
-    setDataSource("supabase");
-    setHydrated(true);
+    try {
+      const repo = new SupabaseBudgetRepository(
+        supabase,
+        membership.household_id,
+      );
+      const loaded = await repo.load();
+      loaded.settings.asOfDate = todayIsoWarsaw();
+      setState(loaded);
+      setHouseholdId(membership.household_id);
+      setDataSource("supabase");
+      setHydrated(true);
+    } catch (e) {
+      // Członkostwo jest — nawet jeśli pełne dane nie wczytają się, nie wracaj na onboarding
+      setHouseholdId(membership.household_id);
+      setDataSource("supabase");
+      setError(e instanceof Error ? e.message : "Błąd wczytywania danych");
+      setHydrated(true);
+    }
   }, []);
 
   useEffect(() => {
