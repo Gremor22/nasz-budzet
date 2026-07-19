@@ -1,0 +1,63 @@
+"use client";
+
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+
+const items: {
+  href: string;
+  label: string;
+  icon: string;
+  primary?: boolean;
+}[] = [
+  { href: "/", label: "Pulpit", icon: "⌂" },
+  { href: "/transakcje", label: "Transakcje", icon: "☰" },
+  { href: "/dodaj", label: "Dodaj", icon: "+", primary: true },
+  { href: "/prognoza", label: "Prognoza", icon: "↗" },
+  { href: "/wiecej", label: "Więcej", icon: "⋯" },
+];
+
+export function BottomNav() {
+  const pathname = usePathname();
+
+  return (
+    <nav
+      className="fixed bottom-0 left-0 right-0 z-50 border-t border-[var(--line)] bg-[var(--card)]/95 backdrop-blur"
+      aria-label="Nawigacja główna"
+    >
+      <div className="mx-auto flex max-w-md items-end justify-around px-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-2">
+        {items.map((item) => {
+          const active =
+            item.href === "/"
+              ? pathname === "/"
+              : pathname.startsWith(item.href);
+          if (item.primary) {
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                className="relative -top-3 flex h-14 w-14 items-center justify-center rounded-full bg-[var(--accent)] text-2xl font-semibold text-white shadow-md"
+                aria-label="Dodaj"
+              >
+                {item.icon}
+              </Link>
+            );
+          }
+          return (
+            <Link
+              key={item.href}
+              href={item.href}
+              className={`flex min-w-[3.5rem] flex-col items-center gap-0.5 px-2 py-1 text-xs ${
+                active ? "text-[var(--accent)]" : "text-[var(--ink-muted)]"
+              }`}
+            >
+              <span className="text-lg leading-none" aria-hidden>
+                {item.icon}
+              </span>
+              <span>{item.label}</span>
+            </Link>
+          );
+        })}
+      </div>
+    </nav>
+  );
+}

@@ -1,28 +1,30 @@
-# Budżet Domowy (BudgetPlanner)
+# Nasz Budżet
 
-**Nasz Budżet** — aplikacja PWA do wspólnego zarządzania budżetem domowym **Pawła i Mileny**.
+Wspólny budżet domowy (Pawła i Mileny) — aplikacja PWA budowana etapami.
 
-Główne pytanie, na które odpowiada:
+Główne pytanie:
 
 > Ile możemy obecnie bezpiecznie wydać, biorąc pod uwagę przyszłe rachunki i wpływy?
 
+## Uruchomienie (Etap 1)
+
+```bash
+cd ~/Desktop/BudgetPlanner
+npm install
+npm run dev
+```
+
+Potem otwórz http://localhost:3000
+
+```bash
+npm test      # testy logiki prognozy
+npm run build # sprawdzenie kompilacji
+```
+
 ## Status
 
-Trwa realizacja etapami. Aktualny stan: zobacz [PROJECT_STATUS.md](./PROJECT_STATUS.md).
-
-Pełny plan Etapu 0: [docs/ETAP_0_PLAN.md](./docs/ETAP_0_PLAN.md).
-
-## Etapy
-
-0. Analiza i przygotowanie  
-1. Prototyp lokalny (bez kont)  
-2. Supabase i logowanie  
-3. Pełny budżet i prognoza  
-4. Kategorie i analityka  
-5. Paragony (OCR)  
-6. PWA / iPhone  
-7. Wdrożenie Vercel i stabilizacja  
+Zobacz [PROJECT_STATUS.md](./PROJECT_STATUS.md) i [docs/ETAP_1_ZAKRES.md](./docs/ETAP_1_ZAKRES.md).
 
 ## Uwaga
 
-Nie commituj plików `.env` ani sekretów. Używaj `.env.local` (poza Git).
+Nie commituj plików `.env` ani sekretów.

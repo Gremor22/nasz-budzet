@@ -1,10 +1,10 @@
-# node_modules
-/.next/
-/out/
-/build/
-/coverage/
-/test-results/
-/playwright-report/
+node_modules/
+.next/
+out/
+build/
+coverage/
+test-results/
+playwright-report/
 .env
 .env.*
 !.env.example
@@ -15,4 +15,3 @@ yarn-debug.log*
 yarn-error.log*
 .vercel
 *.tsbuildinfo
-next-env.d.ts
