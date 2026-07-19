@@ -4,6 +4,31 @@ Wszystkie istotne zmiany w projekcie zapisujemy tutaj po każdym etapie.
 
 ---
 
+## 2026-07-19 — Mini-PWA (przed Etapem 3)
+
+### Zakres
+
+- Manifest, ikony, metadane iOS, standalone
+- Safe-area dolnej nawigacji
+- Podpowiedź „Dodaj do ekranu początkowego” (Safari iPhone)
+- Prosty komunikat offline (bez pełnego cache)
+
+### Nowe funkcje
+
+- Instalacja na Spring Boardzie jako „Nasz Budżet” / „Budżet”
+- `docs/ETAP_PWA_MINI.md` — instrukcja dla użytkowników
+
+### Zmiany bazy
+
+- Brak
+
+### Znane ograniczenia
+
+- Brak push i pełnego offline
+- Podpowiedź instalacji tylko w Safari na iOS
+
+---
+
 ## 2026-07-19 — Wdrożenie testowe Vercel
 
 ### Zakres

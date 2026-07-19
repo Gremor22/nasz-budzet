@@ -21,10 +21,10 @@ export function BottomNav() {
 
   return (
     <nav
-      className="fixed bottom-0 left-0 right-0 z-50 border-t border-[var(--line)] bg-[var(--card)]/95 backdrop-blur"
+      className="fixed bottom-0 left-0 right-0 z-50 border-t border-[var(--line)] bg-[var(--card)]/95 pb-[env(safe-area-inset-bottom)] backdrop-blur supports-[backdrop-filter]:bg-[var(--card)]/90"
       aria-label="Nawigacja główna"
     >
-      <div className="mx-auto flex max-w-md items-end justify-around px-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-2">
+      <div className="mx-auto flex max-w-md items-end justify-around px-2 pb-2 pt-2">
         {items.map((item) => {
           const active =
             item.href === "/"
@@ -46,7 +46,7 @@ export function BottomNav() {
             <Link
               key={item.href}
               href={item.href}
-              className={`flex min-w-[3.5rem] flex-col items-center gap-0.5 px-2 py-1 text-xs ${
+              className={`flex min-h-11 min-w-[3.5rem] flex-col items-center justify-center gap-0.5 px-2 py-1 text-xs ${
                 active ? "text-[var(--accent)]" : "text-[var(--ink-muted)]"
               }`}
             >

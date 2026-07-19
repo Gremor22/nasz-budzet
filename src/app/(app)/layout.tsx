@@ -14,8 +14,14 @@ function AppShell({ children }: { children: React.ReactNode }) {
     !(dataSource === "supabase" && (!householdId || onOnboarding));
 
   return (
-    <div className="mx-auto flex min-h-dvh w-full max-w-md flex-col">
-      <main className={`flex-1 px-4 pt-4 ${showNav ? "pb-28" : "pb-8"}`}>
+    <div className="mx-auto flex min-h-dvh w-full max-w-md flex-col pt-[env(safe-area-inset-top)]">
+      <main
+        className={`flex-1 px-4 pt-4 ${
+          showNav
+            ? "pb-[calc(6.5rem+env(safe-area-inset-bottom))]"
+            : "pb-[calc(2rem+env(safe-area-inset-bottom))]"
+        }`}
+      >
         {children}
       </main>
       {showNav ? <BottomNav /> : null}
