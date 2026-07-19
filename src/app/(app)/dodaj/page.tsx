@@ -7,7 +7,7 @@ import { Card, Label } from "@/components/ui";
 import type { ExpenseStatus, PersonId } from "@/lib/data/types";
 
 export default function AddPage() {
-  const { addExpense, addIncome, state } = useBudget();
+  const { addExpense, addIncome, state, dataSource } = useBudget();
   const router = useRouter();
   const [kind, setKind] = useState<"expense" | "income">("expense");
   const [description, setDescription] = useState("");
@@ -18,7 +18,7 @@ export default function AddPage() {
   const [status, setStatus] = useState<ExpenseStatus>("paid");
   const [error, setError] = useState<string | null>(null);
 
-  function onSubmit(e: FormEvent) {
+  async function onSubmit(e: FormEvent) {
     e.preventDefault();
     setError(null);
     const zl = Number(amountZl.replace(",", "."));
@@ -31,13 +31,18 @@ export default function AddPage() {
       return;
     }
     const amountGrosze = Math.round(zl * 100);
-    const accountId =
-      state.accounts.find((a) => a.includeInBudget)?.id ?? "acc-shared";
+    const accountId = state.accounts.find((a) => a.includeInBudget)?.id;
+    if (!accountId) {
+      setError(
+        "Brak konta w budżecie. Wczytaj dane demo w „Więcej” albo dodaj konto.",
+      );
+      return;
+    }
 
     const base = {
       amountGrosze,
       date,
-      description: description.trim() + " (demo)",
+      description: description.trim(),
       category,
       person,
       paidBy: person,
@@ -46,12 +51,19 @@ export default function AddPage() {
       accountId,
     };
 
-    if (kind === "expense") {
-      addExpense(base);
-    } else {
-      addIncome({ ...base, status: status === "paid" ? "paid" : "planned" });
+    try {
+      if (kind === "expense") {
+        await addExpense(base);
+      } else {
+        await addIncome({
+          ...base,
+          status: status === "paid" ? "paid" : "planned",
+        });
+      }
+      router.push("/transakcje");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Nie udało się zapisać");
     }
-    router.push("/transakcje");
   }
 
   return (
@@ -59,7 +71,7 @@ export default function AddPage() {
       <header>
         <h1 className="text-2xl font-semibold">Dodaj</h1>
         <p className="text-sm text-[var(--ink-muted)]">
-          Zapis lokalny w przeglądarce (localStorage).
+          Zapis w {dataSource === "supabase" ? "Supabase (wspólny)" : "przeglądarce"}.
         </p>
       </header>
 

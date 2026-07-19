@@ -19,7 +19,7 @@ const MODE_HELP: Record<ForecastMode, string> = {
 };
 
 export default function DashboardPage() {
-  const { state, forecast, changeMode, hydrated } = useBudget();
+  const { state, forecast, changeMode, hydrated, dataSource } = useBudget();
 
   if (!hydrated) {
     return <p className="text-[var(--ink-muted)]">Ładowanie danych demo…</p>;
@@ -39,6 +39,7 @@ export default function DashboardPage() {
         <h1 className="text-2xl font-semibold tracking-tight">Nasz Budżet</h1>
         <p className="text-sm text-[var(--ink-muted)]">
           Gospodarstwo: {state.household.name}
+          {dataSource === "supabase" ? " · chmura" : " · lokalnie"}
         </p>
       </header>
 

@@ -1,49 +1,46 @@
 # Status projektu — Nasz Budżet
 
 **Ostatnia aktualizacja:** 19 lipca 2026  
-**Obecny etap:** Etap 1 zakończony · **przygotowanie Etapu 2 (plan — bez bazy)**
+**Obecny etap:** Etap 2 — Supabase i logowanie (**kod gotowy; czekamy na wklejenie migracji + .env.local**)
 
 ---
 
-## Funkcje działające
+## Funkcje działające (lokalnie / po konfiguracji)
 
-- Aplikacja Next.js „Nasz Budżet” (UI po polsku)
-- Pulpit, transakcje, dodawanie, prognoza, więcej
-- Silnik prognozy (tryby ostrożny / realistyczny / pełna)
-- Realistyczny: oczekiwane wpływy = kwota bezpieczna
-- Bufor bezpieczeństwa (demo = 0 zł)
-- Dane demonstracyjne w localStorage (warstwa `BudgetRepository`)
-- 14 testów Vitest logiki prognozy
-- Etap 1 przetestowany ręcznie przez użytkownika
+- Etap 1: prognoza, UI, testy
+- Etap 2 (po migracji + kluczach):
+  - rejestracja / logowanie / wylogowanie
+  - utworzenie gospodarstwa / dołączenie kodem
+  - wspólne dane przez Supabase + RLS
+  - zaproszenia, seed danych demo (fikcyjnych)
 
 ## Funkcje niedziałające
 
-- Logowanie / Supabase (plan gotowy, implementacja nie rozpoczęta)
-- Zaproszenia do gospodarstwa
 - OCR / paragony
-- PWA / wdrożenie Vercel
+- PWA / Vercel
+- Pełna analityka
 
-## Kolejne planowane zadanie
+## Co musisz zrobić Ty
 
-Po akceptacji planu: **Etap 2 — Supabase i logowanie**  
-Dokumenty: `docs/ETAP_2_PLAN.md`, `docs/SUPABASE_KONTO.md`
+1. Wkleić SQL z `supabase/migrations/20260719150000_stage2_core.sql` w SQL Editor
+2. Wyłączyć Confirm email (na czas testów)
+3. Skopiować `.env.example` → `.env.local` i uzupełnić URL + **anon** key
+4. `npm run dev` i przetestować dwa konta
 
 ## Instrukcja uruchomienia
 
 ```bash
 cd ~/Desktop/BudgetPlanner
+cp .env.example .env.local   # uzupełnij klucze
 npm install
 npm run dev
 ```
 
-Otwórz http://localhost:3000 (lub adres z terminala).
-
-```bash
-npm test
-npm run build
-```
-
 ## Zmienne środowiskowe
 
-Etap 1: brak.  
-Etap 2 (później): `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` w `.env.local` (nie w Git).
+```env
+NEXT_PUBLIC_SUPABASE_URL=
+NEXT_PUBLIC_SUPABASE_ANON_KEY=
+```
+
+**Nie** dodawaj `service_role` do przeglądarki ani do Gita.

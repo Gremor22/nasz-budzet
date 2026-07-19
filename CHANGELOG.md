@@ -4,6 +4,36 @@ Wszystkie istotne zmiany w projekcie zapisujemy tutaj po każdym etapie.
 
 ---
 
+## 2026-07-19 — Etap 2: Supabase Auth + RLS (kod)
+
+### Zakres
+
+- Migracja SQL z RLS na wszystkich tabelach aplikacji
+- Logowanie, rejestracja, onboarding gospodarstwa, zaproszenia
+- Repozytorium Supabase (anon key + sesja; bez service_role w kliencie)
+
+### Nowe funkcje
+
+- Ekrany `/logowanie`, `/rejestracja`, `/onboarding`
+- RPC: `create_household`, `create_invitation`, `accept_invitation`
+- Wspólne dane po zalogowaniu; seed fikcyjnych danych demo
+- Middleware chroniący trasy gdy skonfigurowano `.env.local`
+
+### Zmiany bazy
+
+- Plik: `supabase/migrations/20260719150000_stage2_core.sql`
+- Tabele: profiles, households, household_members, household_invitations, accounts, categories, income_sources, recurring_bills, transactions, savings_goals, audit_logs
+- RLS + FORCE RLS na każdej z powyższych
+
+### Znane ograniczenia
+
+- Migrację trzeba wkleić ręcznie w SQL Editor (jeszcze nie uruchomiona automatycznie)
+- Bez `.env.local` aplikacja nie połączy się z Supabase
+- Confirm email warto wyłączyć na czas testów
+- Brak automatycznych testów E2E Auth (Playwright w późniejszym etapie)
+
+---
+
 ## 2026-07-19 — Przygotowanie Etapu 2 (tylko plan)
 
 ### Zakres
