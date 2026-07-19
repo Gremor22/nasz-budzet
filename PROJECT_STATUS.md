@@ -1,7 +1,7 @@
 # Status projektu — Nasz Budżet
 
 **Ostatnia aktualizacja:** 19 lipca 2026  
-**Obecny etap:** Etap 3 — pełny budżet (UI kont / dochodów / rachunków)  
+**Obecny etap:** Etap 4 — analityka (podstawowa)  
 **URL testowy:** https://nasz-budzet.vercel.app  
 **Repozytorium:** https://github.com/Gremor22/nasz-budzet
 
@@ -9,19 +9,17 @@
 
 ## Funkcje działające
 
-- Prognoza (tryby, oś, najniższe saldo, ostrzeżenia)
-- Auth, gospodarstwo, PWA, Vercel
-- **Etap 3:** zarządzanie kontami, źródłami dochodu, rachunkami cyklicznymi
-- Rezerwacja celów; wybór konta przy dodawaniu transakcji
-- 16 testów Vitest
+- Etapy 1–3 + PWA + Vercel
+- **Analityka:** okresy, sumy, kategorie (wykres), osoby, wspólne/osobiste
+- 21 testów Vitest
 
-## Funkcje później
+## Później
 
-- Etap 4: kategorie i analityka
-- Etap 5: paragony
+- Hierarchia kategorii i limity
+- Paragony (Etap 5)
 
-## Test ręczny Etapu 3
+## Test Etapu 4
 
-1. Więcej → Konta / Dochody / Rachunki — dodaj lub edytuj wpis  
-2. Odśwież pulpit — prognoza powinna się zmienić  
-3. Drugie konto w gospodarstwie powinno widzieć te same dane  
+1. Więcej → Analityka  
+2. Przełącz okresy (7 dni / miesiąc / …)  
+3. Sprawdź sumy i wykres kategorii  

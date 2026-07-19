@@ -4,6 +4,26 @@ Wszystkie istotne zmiany w projekcie zapisujemy tutaj po każdym etapie.
 
 ---
 
+## 2026-07-19 — Etap 4: analityka
+
+### Zakres
+
+- Ekran Analityka z okresami, sumami, kategoriami, osobami
+- Wykres kołowy (Recharts) + lista z procentami
+- Porównanie z poprzednim okresem
+- Testy agregacji (5)
+
+### Zmiany bazy
+
+- Brak
+
+### Znane ograniczenia
+
+- Brak zarządzania hierarchią kategorii i limitów
+- Brak sprzedawców (pole nie istnieje jeszcze w modelu transakcji)
+
+---
+
 ## 2026-07-19 — Etap 3: zarządzanie budżetem (konta, dochody, rachunki)
 
 ### Zakres

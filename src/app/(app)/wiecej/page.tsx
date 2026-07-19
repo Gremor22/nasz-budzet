@@ -44,6 +44,7 @@ export default function MorePage() {
         <Label>Budżet</Label>
         <div className="mt-2 flex flex-col gap-1">
           {[
+            { href: "/analityka", label: "Analityka" },
             { href: "/konta", label: "Konta" },
             { href: "/dochody", label: "Źródła dochodu" },
             { href: "/rachunki", label: "Rachunki cykliczne" },
