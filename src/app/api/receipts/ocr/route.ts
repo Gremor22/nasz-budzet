@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { runOcr, resolveOcrProvider } from "@/lib/receipts/ocr";
+import { runOcr } from "@/lib/receipts/ocr";
 import { suggestCategory } from "@/lib/receipts/categorize";
 
 /**
@@ -71,27 +71,30 @@ export async function POST(request: Request) {
       });
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Błąd OCR";
+      const quotaHit =
+        /\b429\b/i.test(msg) ||
+        /quota|rate.?limit|resource.?exhausted/i.test(msg);
+
       await supabase
         .from("receipts")
         .update({
           status: "review",
-          ocr_provider: resolveOcrProvider(),
-          ocr_error: msg,
+          ocr_provider: "tesseract",
+          ocr_error: quotaHit ? "gemini_quota" : msg.slice(0, 500),
         })
         .eq("id", receipt.id);
-      return NextResponse.json(
-        {
-          provider: resolveOcrProvider(),
-          merchantName: null,
-          receiptDate: null,
-          totalGrosze: null,
-          suggestedCategory: null,
-          items: [],
-          note: msg,
-          error: msg,
-        },
-        { status: 200 },
-      );
+
+      // Cisza dla klienta → telefon zrobi Tesseract; bez straszenia JSON-em
+      return NextResponse.json({
+        provider: "tesseract",
+        merchantName: null,
+        receiptDate: null,
+        totalGrosze: null,
+        suggestedCategory: null,
+        items: [],
+        note: "use_client_tesseract",
+        quotaExceeded: quotaHit,
+      });
     }
 
     if (!suggestion.suggestedCategory && suggestion.merchantName) {

@@ -76,7 +76,7 @@ async function runGeminiVision(
   }
 
   const model =
-    process.env.GEMINI_OCR_MODEL ?? "gemini-2.0-flash";
+    process.env.GEMINI_OCR_MODEL ?? "gemini-2.0-flash-lite";
   const b64 = Buffer.from(imageBytes).toString("base64");
 
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
@@ -279,4 +279,14 @@ function parseModelJson(
     rawText: content,
     note: "Darmowy odczyt AI (Google Gemini). Sprawdź pola przed zapisem.",
   };
+}
+
+/** Czy komunikat wygląda na limit / błąd API — nie pokazywać użytkownikowi. */
+export function isTechnicalOcrNote(note: string | null | undefined): boolean {
+  if (!note) return false;
+  return (
+    note === "use_client_tesseract" ||
+    /\b429\b/.test(note) ||
+    /quota|rate.?limit|Gemini OCR|OpenAI OCR/i.test(note)
+  );
 }

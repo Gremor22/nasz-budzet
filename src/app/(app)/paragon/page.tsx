@@ -122,21 +122,11 @@ export default function ReceiptPage() {
       });
       setReceiptId(id);
 
-      // Przytnij dół paragonu = strefa SUMA (fokus dla AI / uzupełnienie)
-      let focusTotalBase64: string | undefined;
-      try {
-        const crop = await cropImageToBlob(file, CROP_TOTAL_ZONE);
-        focusTotalBase64 = await blobToBase64(crop);
-      } catch {
-        focusTotalBase64 = undefined;
-      }
-
+      // Pierwszy odczyt bez drugiego zdjęcia (mniej zużycia limitu Gemini).
+      // Fokus na sumę: przycisk „Popraw odczyt sumy”.
       let suggestion: OcrSuggestion | null = null;
       try {
-        suggestion = await requestOcr(id, {
-          focusTotalBase64,
-          focusMimeType: "image/jpeg",
-        });
+        suggestion = await requestOcr(id);
       } catch {
         suggestion = null;
       }
@@ -191,13 +181,18 @@ export default function ReceiptPage() {
   }
 
   function applySuggestion(suggestion: OcrSuggestion, hhId: string) {
-    const friendlyNote =
-      suggestion.note === "use_client_tesseract"
-        ? null
-        : suggestion.note;
+    const rawNote =
+      suggestion.note === "use_client_tesseract" ? null : suggestion.note;
+    const looksTechnical =
+      !!rawNote &&
+      (/\b429\b/.test(rawNote) ||
+        /Gemini OCR|OpenAI OCR|quota|api key/i.test(rawNote));
+
     setOcrNote(
-      friendlyNote ??
-        "Sprawdź pola przed zapisem — przy niewyraźnym zdjęciu odczyt może się mylić.",
+      looksTechnical
+        ? "Limit darmowego AI na dziś — użyto odczytu w telefonie. Sprawdź sumę (przycisk poniżej pomaga)."
+        : (rawNote ??
+            "Sprawdź pola przed zapisem — przy niewyraźnym zdjęciu odczyt może się mylić."),
     );
     if (suggestion.merchantName) setMerchant(suggestion.merchantName);
     if (suggestion.receiptDate) setDate(suggestion.receiptDate);
@@ -224,13 +219,26 @@ export default function ReceiptPage() {
     server: OcrSuggestion | null,
     local: OcrSuggestion,
   ): OcrSuggestion {
-    if (!server || server.note === "use_client_tesseract") {
+    if (
+      !server ||
+      server.note === "use_client_tesseract" ||
+      server.provider === "tesseract" ||
+      server.provider === "manual"
+    ) {
       return local;
     }
+    const serverBroken =
+      server.totalGrosze == null &&
+      !server.merchantName &&
+      (!!server.note &&
+        (/\b429\b/.test(server.note) || /OCR:/i.test(server.note)));
+    if (serverBroken) return local;
+
     return {
-      provider: server.provider === "gemini" || server.provider === "openai"
-        ? server.provider
-        : local.provider,
+      provider:
+        server.provider === "gemini" || server.provider === "openai"
+          ? server.provider
+          : local.provider,
       merchantName: server.merchantName ?? local.merchantName,
       receiptDate: server.receiptDate ?? local.receiptDate,
       totalGrosze: server.totalGrosze ?? local.totalGrosze,
