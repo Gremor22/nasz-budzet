@@ -1,7 +1,13 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { runOcr, classifyGeminiError } from "@/lib/receipts/ocr";
+import {
+  runOcr,
+  classifyGeminiError,
+  GeminiOcrError,
+  getGeminiOcrModel,
+} from "@/lib/receipts/ocr";
 import { suggestCategory } from "@/lib/receipts/categorize";
+import { logGeminiOcrFailure } from "@/lib/receipts/gemini-errors";
 
 /**
  * POST /api/receipts/ocr
@@ -70,6 +76,52 @@ export async function POST(request: Request) {
         focusMimeType: body.focusMimeType,
       });
     } catch (err) {
+      if (err instanceof GeminiOcrError) {
+        logGeminiOcrFailure({
+          errorCode: err.errorCode,
+          gemini: err.gemini,
+          model: err.model,
+          attempt: err.attempt,
+          withSchema: err.withSchema,
+          receiptId: body.receiptId,
+        });
+
+        await supabase
+          .from("receipts")
+          .update({
+            status: "review",
+            ocr_provider: "manual",
+            ocr_error: `${err.errorCode}: ${err.gemini.message}`.slice(0, 500),
+          })
+          .eq("id", receipt.id);
+
+        return NextResponse.json({
+          provider: "manual",
+          merchantName: null,
+          receiptDate: null,
+          totalGrosze: null,
+          suggestedCategory: null,
+          items: [],
+          note:
+            err.errorCode === "GEMINI_MODEL_UNAVAILABLE"
+              ? "manual_after_config"
+              : err.errorCode.startsWith("GEMINI_") &&
+                  err.errorCode !== "GEMINI_UNKNOWN_ERROR"
+                ? "manual_after_quota"
+                : "manual_after_error",
+          failureKind:
+            err.errorCode === "GEMINI_MODEL_UNAVAILABLE" ? "config" : "quota",
+          quotaExceeded: err.httpStatus === 429,
+          errorCode: err.errorCode,
+          geminiModel: err.model,
+          geminiAttempt: err.attempt,
+          geminiHttpStatus: err.httpStatus,
+          geminiErrorStatus: err.gemini.status,
+          geminiErrorMessage: err.gemini.message,
+          geminiErrorDetails: err.gemini.detailsAnonymized,
+        });
+      }
+
       const msg = err instanceof Error ? err.message : "Błąd OCR";
       const failureKind = classifyGeminiError(msg);
 
@@ -97,6 +149,8 @@ export async function POST(request: Request) {
               : "manual_after_error",
         failureKind,
         quotaExceeded: failureKind === "quota",
+        errorCode: "GEMINI_UNKNOWN_ERROR",
+        geminiModel: getGeminiOcrModel(),
       });
     }
 

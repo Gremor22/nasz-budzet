@@ -1,5 +1,15 @@
 import type { OcrProviderId, OcrSuggestion, OcrFailureKind } from "@/lib/receipts/types";
 import { suggestCategory } from "@/lib/receipts/categorize";
+import {
+  GeminiOcrError,
+  classifyGeminiErrorCode,
+  getGeminiOcrModel,
+  logGeminiOcrFailure,
+  parseGeminiErrorBody,
+} from "@/lib/receipts/gemini-errors";
+
+export type { GeminiErrorCode } from "@/lib/receipts/gemini-errors";
+export { GeminiOcrError, getGeminiOcrModel } from "@/lib/receipts/gemini-errors";
 
 /**
  * V1 OCR: Gemini 2.5 Flash → API Route → JSON Schema → weryfikacja → zapis.
@@ -110,7 +120,7 @@ async function runGeminiVision(
     );
   }
 
-  const model = process.env.GEMINI_OCR_MODEL ?? "gemini-2.5-flash";
+  const model = getGeminiOcrModel();
   const prompt =
     "Jesteś OCR polskich paragonów fiskalnych. " +
     "Wypełnij pola: merchantName, receiptDate (YYYY-MM-DD), totalGrosze (grosze!), items. " +
@@ -140,9 +150,13 @@ async function runGeminiVision(
     });
   }
 
-  // 1) Ze schema, 2) bez schema przy 400
-  let lastError = "";
+  // Próba 1: ze schema. Próba 2: tylko przy HTTP 400 (bez opóźnienia).
+  // Przy 429 NIE ma drugiej próby — jedno wywołanie Gemini na błąd limitu.
+  let lastGeminiError: GeminiOcrError | null = null;
+  let attempt = 0;
+
   for (const withSchema of [true, false]) {
+    attempt += 1;
     const response = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
       {
@@ -187,19 +201,39 @@ async function runGeminiVision(
     }
 
     const errText = await response.text();
-    lastError = `${response.status} ${errText.slice(0, 280)}`;
+    const parsed = parseGeminiErrorBody(response.status, errText);
+    const errorCode = classifyGeminiErrorCode(response.status, parsed);
+    const geminiErr = new GeminiOcrError({
+      errorCode,
+      httpStatus: response.status,
+      gemini: parsed,
+      model,
+      attempt,
+      withSchema,
+    });
+    lastGeminiError = geminiErr;
+    logGeminiOcrFailure({
+      errorCode,
+      gemini: parsed,
+      model,
+      attempt,
+      withSchema,
+    });
 
-    // Quota — nie ma sensu retry bez schema
+    // Limit / quota — nie retry (bez opóźnienia i bez drugiego calla)
     if (response.status === 429) {
-      throw new Error(`Gemini OCR: ${lastError}`);
+      throw geminiErr;
     }
-    // Inny błąd przy schema → spróbuj bez; przy drugim przebiegu rzuć
-    if (!withSchema || response.status !== 400) {
-      throw new Error(`Gemini OCR: ${lastError}`);
+
+    // Błąd schema (400) — jedna natychmiastowa próba bez schema
+    if (withSchema && response.status === 400) {
+      continue;
     }
+
+    throw geminiErr;
   }
 
-  throw new Error(`Gemini OCR: ${lastError}`);
+  throw lastGeminiError ?? new Error("Gemini OCR: nieznany błąd");
 }
 
 async function runOpenAiVision(

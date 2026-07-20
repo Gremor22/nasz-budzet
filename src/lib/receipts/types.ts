@@ -3,7 +3,11 @@
  * Klucze API wyłącznie po stronie serwera.
  */
 
+import type { GeminiErrorCode } from "@/lib/receipts/gemini-errors";
+
 export type OcrProviderId = "manual" | "openai" | "gemini";
+
+export type { GeminiErrorCode };
 
 export type OcrFailureKind = "quota" | "config" | "api" | null;
 
@@ -24,6 +28,11 @@ export interface OcrSuggestion {
   note?: string;
   /** Dlaczego padło na ręczny formularz — do komunikatu UI */
   failureKind?: OcrFailureKind;
+  /** Kod przyczyny z Gemini (diagnostyka 429 itd.) */
+  errorCode?: GeminiErrorCode;
+  geminiModel?: string;
+  geminiAttempt?: number;
+  geminiErrorDetails?: unknown;
 }
 
 export interface ClassificationRule {
