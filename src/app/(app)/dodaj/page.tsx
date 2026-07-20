@@ -86,13 +86,14 @@ export default function AddPage() {
       {dataSource === "supabase" && (
         <Link
           href="/paragon"
+          data-tour="scan-receipt"
           className="rounded-xl bg-[var(--accent-soft)] px-3 py-3 text-center text-sm font-medium text-[var(--accent)]"
         >
           Zeskanuj paragon (zdjęcie) →
         </Link>
       )}
 
-      <div className="flex gap-2">
+      <div className="flex gap-2" data-tour="add-form">
         <button
           type="button"
           className={`flex-1 rounded-xl py-2.5 text-sm font-medium ${

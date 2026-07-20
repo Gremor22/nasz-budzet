@@ -62,7 +62,7 @@ export default function ForecastPage() {
         )}
       </Card>
 
-      <Card>
+      <Card data-tour="prognoza-timeline">
         <Label>Oś zdarzeń</Label>
         <ul className="mt-2 divide-y divide-[var(--line)]">
           <li className="flex justify-between py-2 text-sm">

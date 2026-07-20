@@ -43,7 +43,7 @@ export default function DashboardPage() {
         </p>
       </header>
 
-      <Card className="bg-gradient-to-br from-[#edf7f0] to-[var(--card)]">
+      <Card className="bg-gradient-to-br from-[#edf7f0] to-[var(--card)]" data-tour="safe-to-spend">
         <Label>Bezpiecznie do wydania</Label>
         <div className="mt-1">
           <Money grosze={forecast.safeToSpendGrosze} size="xl" tone={safeTone} />
@@ -54,7 +54,7 @@ export default function DashboardPage() {
           <strong>{MODE_LABELS[forecast.mode]}</strong>.
         </p>
 
-        <div className="mt-3 flex flex-wrap gap-2">
+        <div className="mt-3 flex flex-wrap gap-2" data-tour="forecast-mode">
           {(Object.keys(MODE_LABELS) as ForecastMode[]).map((mode) => (
             <button
               key={mode}

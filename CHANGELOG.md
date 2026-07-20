@@ -4,6 +4,27 @@ Wszystkie istotne zmiany w projekcie zapisujemy tutaj po każdym etapie.
 
 ---
 
+## 2026-07-20 — Etap 7: stabilizacja
+
+### Zakres
+
+- Eksport pełnego backupu JSON (`GET /api/export?format=json`)
+- Eksport transakcji CSV (Excel, UTF-8 z BOM)
+- UI eksportu w Więcej + instrukcja w aplikacji (`/pomoc`)
+- Dokumentacja: `docs/ETAP_7_STABILIZACJA.md`, `docs/INSTRUKCJA_UZYTKOWNIKA.md`
+
+### Zmiany bazy
+
+- Brak
+
+### Znane ograniczenia
+
+- Brak importu z pliku
+- Zdjęcia paragonów nie wchodzą do eksportu JSON
+- Brak usuwania konta z poziomu aplikacji
+
+---
+
 ## 2026-07-19 — Paragony V1: Gemini 2.5 Flash + JSON Schema
 
 ### Zakres

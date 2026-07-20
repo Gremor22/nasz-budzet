@@ -35,6 +35,7 @@ export function BottomNav() {
               <Link
                 key={item.href}
                 href={item.href}
+                data-tour="nav-add"
                 className="relative -top-3 flex h-14 w-14 items-center justify-center rounded-full bg-[var(--accent)] text-2xl font-semibold text-white shadow-md"
                 aria-label="Dodaj"
               >
@@ -46,6 +47,13 @@ export function BottomNav() {
             <Link
               key={item.href}
               href={item.href}
+              data-tour={
+                item.href === "/prognoza"
+                  ? "nav-prognoza"
+                  : item.href === "/wiecej"
+                    ? "nav-wiecej"
+                    : undefined
+              }
               className={`flex min-h-11 min-w-[3.5rem] flex-col items-center justify-center gap-0.5 px-2 py-1 text-xs ${
                 active ? "text-[var(--accent)]" : "text-[var(--ink-muted)]"
               }`}

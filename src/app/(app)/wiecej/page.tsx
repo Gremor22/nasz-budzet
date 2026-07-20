@@ -3,6 +3,9 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useBudget } from "@/lib/data/budget-context";
+import { downloadBudgetExport } from "@/lib/data/export-client";
+import type { ExportFormat } from "@/lib/data/export";
+import { useTour } from "@/lib/tour/context";
 import { Card, Label, Money } from "@/components/ui";
 
 export default function MorePage() {
@@ -18,12 +21,33 @@ export default function MorePage() {
     signOut,
     setGoalReserved,
   } = useBudget();
+  const { startTour } = useTour();
   const [bufferInput, setBufferInput] = useState(
     String(state.household.safetyBufferGrosze / 100),
   );
   const [inviteCode, setInviteCode] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [exporting, setExporting] = useState<ExportFormat | null>(null);
+
+  async function onExport(format: ExportFormat) {
+    if (dataSource !== "supabase" && dataSource !== "local") return;
+    setExporting(format);
+    setError(null);
+    setMessage(null);
+    try {
+      await downloadBudgetExport(format, { dataSource, state });
+      setMessage(
+        format === "csv"
+          ? "Pobrano CSV transakcji."
+          : "Pobrano pełny backup JSON.",
+      );
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Błąd eksportu");
+    } finally {
+      setExporting(null);
+    }
+  }
 
   if (!hydrated) {
     return <p className="text-[var(--ink-muted)]">Ładowanie…</p>;
@@ -40,7 +64,7 @@ export default function MorePage() {
         </p>
       </header>
 
-      <Card>
+      <Card data-tour="wiecej-budget">
         <Label>Budżet</Label>
         <div className="mt-2 flex flex-col gap-1">
           {[
@@ -49,6 +73,7 @@ export default function MorePage() {
             { href: "/dochody", label: "Źródła dochodu" },
             { href: "/rachunki", label: "Rachunki cykliczne" },
             { href: "/cele", label: "Cele oszczędnościowe" },
+            { href: "/pomoc", label: "Instrukcja" },
           ].map((item) => (
             <Link
               key={item.href}
@@ -195,6 +220,32 @@ export default function MorePage() {
         )}
       </Card>
 
+      <Card data-tour="wiecej-export">
+        <Label>Eksport danych</Label>
+        <p className="mt-1 text-sm text-[var(--ink-muted)]">
+          Pobierz kopię budżetu na dysk — backup JSON lub transakcje do Excela
+          (CSV).
+        </p>
+        <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+          <button
+            type="button"
+            className="flex-1 rounded-xl bg-[var(--accent)] py-2.5 text-white disabled:opacity-60"
+            disabled={exporting !== null}
+            onClick={() => void onExport("json")}
+          >
+            {exporting === "json" ? "Pobieranie…" : "Backup JSON"}
+          </button>
+          <button
+            type="button"
+            className="flex-1 rounded-xl border border-[var(--accent)] py-2.5 text-[var(--accent)] disabled:opacity-60"
+            disabled={exporting !== null}
+            onClick={() => void onExport("csv")}
+          >
+            {exporting === "csv" ? "Pobieranie…" : "Transakcje CSV"}
+          </button>
+        </div>
+      </Card>
+
       {dataSource === "supabase" && (
         <Card>
           <Label>Dane demonstracyjne (fikcyjne)</Label>
@@ -223,6 +274,21 @@ export default function MorePage() {
         </Card>
       )}
 
+      <Card>
+        <Label>Przewodnik po aplikacji</Label>
+        <p className="mt-1 text-sm text-[var(--ink-muted)]">
+          Interaktywny tour ze strzałkami — pokaże, gdzie klikać przy pierwszym
+          użyciu.
+        </p>
+        <button
+          type="button"
+          className="mt-3 w-full rounded-xl border border-[var(--accent)] py-2.5 text-[var(--accent)]"
+          onClick={startTour}
+        >
+          Pokaż przewodnik ponownie
+        </button>
+      </Card>
+
       {(message || error) && (
         <p
           className={`rounded-xl px-3 py-2 text-sm ${
@@ -246,7 +312,7 @@ export default function MorePage() {
       )}
 
       <p className="text-center text-xs text-[var(--ink-muted)]">
-        Etap 3 · Nasz Budżet · źródło: {dataSource}
+        Etap 7 · Nasz Budżet · źródło: {dataSource}
       </p>
     </div>
   );
