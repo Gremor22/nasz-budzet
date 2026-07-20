@@ -25,6 +25,7 @@ import {
   blobToBase64,
   cropImageToBlob,
 } from "@/lib/receipts/crop-image";
+import { recognizeReceiptFree } from "@/lib/receipts/tesseract-client";
 import { isTechnicalOcrNote } from "@/lib/receipts/ocr-notes";
 
 function messageForFailure(kind: OcrFailureKind): string {
@@ -143,43 +144,47 @@ export default function ReceiptPage() {
       });
       setReceiptId(id);
 
-      // V1: tylko Gemini → ekran zatwierdzenia
-      let suggestion: OcrSuggestion;
-      try {
-        suggestion = await requestOcr(id);
-      } catch {
-        suggestion = {
-          provider: "manual",
-          merchantName: null,
-          receiptDate: null,
-          totalGrosze: null,
-          suggestedCategory: null,
-          items: [],
-          note: "manual_after_error",
-          failureKind: "api",
-        };
-      }
+      // 1) Zawsze: Tesseract → szybkie wypełnienie pól (żeby aplikacja działała przy 429)
+      const localSuggestion = await recognizeReceiptFree(
+        file,
+      );
+      applySuggestion(localSuggestion, householdId);
 
-      const kind = suggestion.failureKind ?? inferFailureFromNote(suggestion.note);
-      if (suggestion.provider === "manual" || kind) {
-        suggestion = {
-          ...suggestion,
-          note: messageForFailure(kind ?? "api"),
-          failureKind: kind ?? "api",
-        };
-      }
-
-      applySuggestion(suggestion, householdId);
-
+      // Zapisujemy propozycję do wiersza receipts (bez transakcji).
       await updateReceiptReview({
         receiptId: id,
-        merchantName: suggestion.merchantName ?? "",
-        receiptDate: suggestion.receiptDate ?? todayIsoWarsaw(),
-        totalGrosze: suggestion.totalGrosze ?? 0,
-        suggestedCategory: suggestion.suggestedCategory ?? "Inne",
+        merchantName: localSuggestion.merchantName ?? "",
+        receiptDate: localSuggestion.receiptDate ?? todayIsoWarsaw(),
+        totalGrosze: localSuggestion.totalGrosze ?? 0,
+        suggestedCategory: localSuggestion.suggestedCategory ?? "Inne",
       }).catch(() => {
         /* nie blokuj UI */
       });
+
+      // 2) Dopiero potem: Gemini → nadpisuje pola, jeśli dało radę
+      let aiSuggestion: OcrSuggestion | null = null;
+      try {
+        aiSuggestion = await requestOcr(id);
+      } catch {
+        aiSuggestion = null;
+      }
+
+      if (aiSuggestion?.provider === "gemini") {
+        applySuggestion(aiSuggestion, householdId);
+        await updateReceiptReview({
+          receiptId: id,
+          merchantName: aiSuggestion.merchantName ?? "",
+          receiptDate: aiSuggestion.receiptDate ?? todayIsoWarsaw(),
+          totalGrosze: aiSuggestion.totalGrosze ?? 0,
+          suggestedCategory: aiSuggestion.suggestedCategory ?? "Inne",
+        }).catch(() => {
+          /* nie blokuj UI */
+        });
+      } else if (aiSuggestion) {
+        // Gemini nie zadziałało (często 429) — nie nadpisujemy pól, tylko komunikat.
+        const kind = aiSuggestion.failureKind ?? inferFailureFromNote(aiSuggestion.note);
+        setOcrNote(messageForFailure(kind ?? "api"));
+      }
 
       const signed = await getReceiptImageUrl(storagePath).catch(() => localUrl);
       setPreviewUrl(signed);
@@ -347,7 +352,8 @@ export default function ReceiptPage() {
         </Link>
         <h1 className="mt-1 text-2xl font-semibold">Paragon</h1>
         <p className="text-sm text-[var(--ink-muted)]">
-          Zdjęcie → Gemini → Twoja weryfikacja → dopiero potem wydatek.
+          Zdjęcie → Tesseract (darmowe) → Gemini (jeśli dostępne) → potem
+          Twoja weryfikacja i wydatek.
         </p>
       </header>
 
