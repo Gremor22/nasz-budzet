@@ -125,6 +125,68 @@ export class SupabaseBudgetRepository {
     if (error) throw new Error(error.message);
   }
 
+  /** Zapisuje różnicę transakcji po synchronizacji ze źródłami dochodu. */
+  async persistIncomeSourceSync(
+    before: import("@/lib/data/types").BudgetState,
+    after: import("@/lib/data/types").BudgetState,
+  ): Promise<void> {
+    const beforeById = new Map(before.transactions.map((t) => [t.id, t]));
+    const afterById = new Map(after.transactions.map((t) => [t.id, t]));
+
+    for (const t of after.transactions) {
+      const old = beforeById.get(t.id);
+      if (!old) {
+        await this.addTransaction({
+          type: t.type,
+          amountGrosze: t.amountGrosze,
+          date: t.date,
+          description: t.description,
+          category: t.category,
+          person: t.person,
+          paidBy: t.paidBy,
+          isShared: t.isShared,
+          status: t.status,
+          accountId: t.accountId,
+          incomeSourceId: t.incomeSourceId,
+          receiptId: t.receiptId,
+          note: t.note,
+        });
+        continue;
+      }
+      if (
+        t.incomeSourceId &&
+        old.status === "planned" &&
+        (old.amountGrosze !== t.amountGrosze ||
+          old.status !== t.status ||
+          old.description !== t.description ||
+          old.date !== t.date)
+      ) {
+        await this.deleteTransaction(t.id);
+        await this.addTransaction({
+          type: t.type,
+          amountGrosze: t.amountGrosze,
+          date: t.date,
+          description: t.description,
+          category: t.category,
+          person: t.person,
+          paidBy: t.paidBy,
+          isShared: t.isShared,
+          status: t.status,
+          accountId: t.accountId,
+          incomeSourceId: t.incomeSourceId,
+          receiptId: t.receiptId,
+          note: t.note,
+        });
+      }
+    }
+
+    for (const t of before.transactions) {
+      if (!afterById.has(t.id) && t.incomeSourceId && t.status === "planned") {
+        await this.deleteTransaction(t.id);
+      }
+    }
+  }
+
   async updateHouseholdSettings(input: {
     safetyBufferGrosze?: number;
     forecastMode?: ForecastMode;

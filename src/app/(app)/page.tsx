@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import { useBudget } from "@/lib/data/budget-context";
 import { computeAnalytics } from "@/lib/analytics/summary";
+import { computeCurrentBalance } from "@/lib/forecast/engine";
 import {
   monthKeyFromDate,
   monthRangeFromKey,
@@ -53,6 +54,11 @@ export default function DashboardPage() {
         ? "safe"
         : "default";
 
+  const balanceGrosze = useMemo(
+    () => computeCurrentBalance(state),
+    [state],
+  );
+
   return (
     <div className="flex min-w-0 flex-col gap-4 overflow-x-hidden">
       <header>
@@ -84,6 +90,18 @@ export default function DashboardPage() {
           ›
         </button>
       </div>
+
+      <Card>
+        <div className="flex items-end justify-between gap-3">
+          <div>
+            <Label>Na koncie teraz</Label>
+            <p className="mt-0.5 text-xs text-[var(--ink-muted)]">
+              Konto + otrzymane wpływy
+            </p>
+          </div>
+          <Money grosze={balanceGrosze} size="lg" />
+        </div>
+      </Card>
 
       <Card
         className="bg-gradient-to-br from-[#edf7f0] to-[var(--card)]"

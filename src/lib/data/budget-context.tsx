@@ -25,6 +25,10 @@ import type {
   Transaction,
 } from "@/lib/data/types";
 import { computeForecast } from "@/lib/forecast/engine";
+import {
+  applyIncomeSourceSync,
+  incomeSourceSyncChanged,
+} from "@/lib/income/sync-source-transactions";
 import { todayIsoWarsaw } from "@/lib/dates/today";
 import { nextMonthlyPayDate } from "@/lib/dates/pay-day";
 import type { SimpleSetupInput } from "@/lib/data/simple-setup";
@@ -140,7 +144,11 @@ export function BudgetProvider({ children }: { children: ReactNode }) {
       );
       const loaded = await repo.load();
       loaded.settings.asOfDate = todayIsoWarsaw();
-      setState(loaded);
+      const synced = applyIncomeSourceSync(loaded);
+      if (incomeSourceSyncChanged(loaded, synced)) {
+        await repo.persistIncomeSourceSync(loaded, synced);
+      }
+      setState(synced);
       setHouseholdId(membership.household_id);
       setDataSource("supabase");
       setHydrated(true);
@@ -282,7 +290,7 @@ export function BudgetProvider({ children }: { children: ReactNode }) {
                   },
                 ]
               : prev.incomeSources;
-          return {
+          return applyIncomeSourceSync({
             ...prev,
             accounts,
             incomeSources,
@@ -290,7 +298,7 @@ export function BudgetProvider({ children }: { children: ReactNode }) {
             recurringBills: [],
             savingsGoals: [],
             household: { ...prev.household, initialSetupDone: true },
-          };
+          });
         });
         return;
       }
@@ -393,21 +401,24 @@ export function BudgetProvider({ children }: { children: ReactNode }) {
       const repo = await withRepo();
       if (!repo) {
         setState((prev) => {
+          let next: BudgetState;
           if (input.id) {
-            return {
+            next = {
               ...prev,
               incomeSources: prev.incomeSources.map((s) =>
                 s.id === input.id ? { ...s, ...input, id: input.id } : s,
               ),
             };
+          } else {
+            next = {
+              ...prev,
+              incomeSources: [
+                ...prev.incomeSources,
+                { ...input, id: `inc-${crypto.randomUUID()}` },
+              ],
+            };
           }
-          return {
-            ...prev,
-            incomeSources: [
-              ...prev.incomeSources,
-              { ...input, id: `inc-${crypto.randomUUID()}` },
-            ],
-          };
+          return applyIncomeSourceSync(next);
         });
         return;
       }
@@ -417,10 +428,12 @@ export function BudgetProvider({ children }: { children: ReactNode }) {
     removeIncomeSource: async (id) => {
       const repo = await withRepo();
       if (!repo) {
-        setState((prev) => ({
-          ...prev,
-          incomeSources: prev.incomeSources.filter((s) => s.id !== id),
-        }));
+        setState((prev) =>
+          applyIncomeSourceSync({
+            ...prev,
+            incomeSources: prev.incomeSources.filter((s) => s.id !== id),
+          }),
+        );
         return;
       }
       await repo.deleteIncomeSource(id);

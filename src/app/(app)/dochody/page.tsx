@@ -113,8 +113,8 @@ export default function IncomePage() {
         </Link>
         <h1 className="mt-1 text-2xl font-semibold">Źródła dochodu</h1>
         <p className="text-sm text-[var(--ink-muted)]">
-          Plan przyszłych wpływów (wypłaty, zlecenia). Nie zmienia „Aktualnego
-          salda” — ustaw je w Kontach albo dodaj wpływ w „+”.
+          Pensja i inne stałe wpływy trafiają automatycznie na Pulpit i do salda
+          konta. Przeszłe daty = już otrzymane, przyszłe = planowane.
         </p>
       </header>
 
