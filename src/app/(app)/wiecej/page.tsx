@@ -7,6 +7,7 @@ import { useBudget } from "@/lib/data/budget-context";
 import { downloadBudgetExport } from "@/lib/data/export-client";
 import type { ExportFormat } from "@/lib/data/export";
 import { useTour } from "@/lib/tour/context";
+import { ThemeSettings } from "@/components/ThemeSettings";
 import { Card, Label, Money } from "@/components/ui";
 
 export default function MorePage() {
@@ -17,7 +18,6 @@ export default function MorePage() {
     hydrated,
     dataSource,
     userEmail,
-    seedDemo,
     createInviteCode,
     signOut,
     setGoalReserved,
@@ -144,7 +144,7 @@ export default function MorePage() {
       <Card>
         <Label>Bufor bezpieczeństwa</Label>
         <p className="mt-1 text-sm text-[var(--ink-muted)]">
-          Kwota odejmowana od „bezpiecznie do wydania”. W demo start = 0 zł.
+          Kwota odejmowana od prognozy „bezpiecznie do wydania”.
         </p>
         <div className="mt-3 flex gap-2">
           <input
@@ -246,6 +246,10 @@ export default function MorePage() {
         )}
       </Card>
 
+      <Card>
+        <ThemeSettings />
+      </Card>
+
       <Card data-tour="wiecej-export">
         <Label>Eksport danych</Label>
         <p className="mt-1 text-sm text-[var(--ink-muted)]">
@@ -271,34 +275,6 @@ export default function MorePage() {
           </button>
         </div>
       </Card>
-
-      {dataSource === "supabase" && (
-        <Card>
-          <Label>Dane demonstracyjne (fikcyjne)</Label>
-          <p className="mt-1 text-sm text-[var(--ink-muted)]">
-            Wypełnia gospodarstwo przykładowymi kwotami testowymi — nie prawdziwymi
-            finansami. Działa tylko gdy nie ma jeszcze kont poza kontem wspólnym
-            startowym albo gdy gospodarstwo jest „puste” od kont demo.
-          </p>
-          <button
-            type="button"
-            className="mt-3 w-full rounded-xl border border-[var(--accent)] py-2.5 text-[var(--accent)]"
-            onClick={async () => {
-              setError(null);
-              setMessage(null);
-              try {
-                await seedDemo();
-                setMessage("Wczytano dane demonstracyjne.");
-                setBufferInput("0");
-              } catch (e) {
-                setError(e instanceof Error ? e.message : "Błąd");
-              }
-            }}
-          >
-            Wczytaj dane demo
-          </button>
-        </Card>
-      )}
 
       <Card>
         <Label>Przewodnik po aplikacji</Label>
@@ -352,10 +328,6 @@ export default function MorePage() {
           Wyloguj
         </button>
       )}
-
-      <p className="text-center text-xs text-[var(--ink-muted)]">
-        Etap 7 · Nasz Budżet · źródło: {dataSource}
-      </p>
     </div>
   );
 }

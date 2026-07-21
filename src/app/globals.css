@@ -12,6 +12,8 @@
   --danger: #9b2c2c;
   --accent: #2d6a4f;
   --accent-soft: #d8f3dc;
+  --chart-bg-1: #d8f3dc;
+  --chart-bg-2: #e8e4d9;
 }
 
 html,
@@ -20,8 +22,8 @@ body {
   min-height: 100%;
   min-height: 100dvh;
   background:
-    radial-gradient(ellipse 120% 80% at 10% -10%, #d8f3dc 0%, transparent 55%),
-    radial-gradient(ellipse 90% 60% at 100% 0%, #e8e4d9 0%, transparent 50%),
+    radial-gradient(ellipse 120% 80% at 10% -10%, var(--chart-bg-1) 0%, transparent 55%),
+    radial-gradient(ellipse 90% 60% at 100% 0%, var(--chart-bg-2) 0%, transparent 50%),
     var(--bg);
   color: var(--ink);
 }

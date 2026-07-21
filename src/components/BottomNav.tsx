@@ -2,18 +2,26 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import {
+  Home,
+  List,
+  Plus,
+  TrendingUp,
+  MoreHorizontal,
+  type LucideIcon,
+} from "lucide-react";
 
 const items: {
   href: string;
   label: string;
-  icon: string;
+  icon: LucideIcon;
   primary?: boolean;
 }[] = [
-  { href: "/", label: "Pulpit", icon: "⌂" },
-  { href: "/transakcje", label: "Transakcje", icon: "☰" },
-  { href: "/dodaj", label: "Dodaj", icon: "+", primary: true },
-  { href: "/prognoza", label: "Prognoza", icon: "↗" },
-  { href: "/wiecej", label: "Więcej", icon: "⋯" },
+  { href: "/", label: "Pulpit", icon: Home },
+  { href: "/transakcje", label: "Transakcje", icon: List },
+  { href: "/dodaj", label: "Dodaj", icon: Plus, primary: true },
+  { href: "/prognoza", label: "Prognoza", icon: TrendingUp },
+  { href: "/wiecej", label: "Więcej", icon: MoreHorizontal },
 ];
 
 export function BottomNav() {
@@ -30,19 +38,22 @@ export function BottomNav() {
             item.href === "/"
               ? pathname === "/"
               : pathname.startsWith(item.href);
+          const Icon = item.icon;
+
           if (item.primary) {
             return (
               <Link
                 key={item.href}
                 href={item.href}
                 data-tour="nav-add"
-                className="relative -top-2 flex h-12 w-12 items-center justify-center rounded-full bg-[var(--accent)] text-xl font-semibold text-white shadow-md"
+                className="relative -top-2 flex h-12 w-12 items-center justify-center rounded-full bg-[var(--accent)] text-white shadow-md"
                 aria-label="Dodaj"
               >
-                {item.icon}
+                <Icon className="h-6 w-6" strokeWidth={2.25} />
               </Link>
             );
           }
+
           return (
             <Link
               key={item.href}
@@ -58,9 +69,11 @@ export function BottomNav() {
                 active ? "text-[var(--accent)]" : "text-[var(--ink-muted)]"
               }`}
             >
-              <span className="text-lg leading-none" aria-hidden>
-                {item.icon}
-              </span>
+              <Icon
+                className="h-5 w-5"
+                strokeWidth={active ? 2.25 : 1.75}
+                aria-hidden
+              />
               <span>{item.label}</span>
             </Link>
           );

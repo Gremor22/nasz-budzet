@@ -41,7 +41,7 @@ export function Card({
 }) {
   return (
     <section
-      className={`min-w-0 overflow-hidden rounded-2xl border border-[var(--line)] bg-[var(--card)] p-4 shadow-sm ${className}`}
+      className={`min-w-0 rounded-2xl border border-[var(--line)] bg-[var(--card)] p-4 shadow-sm ${className}`}
     >
       {children}
     </section>

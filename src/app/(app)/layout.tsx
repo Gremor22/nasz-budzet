@@ -1,10 +1,12 @@
 "use client";
 
 import { BudgetProvider, useBudget } from "@/lib/data/budget-context";
+import { AppFooter } from "@/components/AppFooter";
 import { BottomNav } from "@/components/BottomNav";
 import { HouseholdGate } from "@/components/HouseholdGate";
 import { ProductTour } from "@/components/ProductTour";
 import { TourProvider } from "@/lib/tour/context";
+import { ThemeProvider } from "@/lib/theme/context";
 import { usePathname } from "next/navigation";
 
 function AppShell({ children }: { children: React.ReactNode }) {
@@ -33,6 +35,7 @@ function AppShell({ children }: { children: React.ReactNode }) {
         }
       >
         {children}
+        <AppFooter />
       </main>
       {showNav ? <BottomNav /> : null}
     </div>
@@ -41,13 +44,15 @@ function AppShell({ children }: { children: React.ReactNode }) {
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
-    <BudgetProvider>
-      <HouseholdGate>
-        <TourProvider>
-          <AppShell>{children}</AppShell>
-          <ProductTour />
-        </TourProvider>
-      </HouseholdGate>
-    </BudgetProvider>
+    <ThemeProvider>
+      <BudgetProvider>
+        <HouseholdGate>
+          <TourProvider>
+            <AppShell>{children}</AppShell>
+            <ProductTour />
+          </TourProvider>
+        </HouseholdGate>
+      </BudgetProvider>
+    </ThemeProvider>
   );
 }

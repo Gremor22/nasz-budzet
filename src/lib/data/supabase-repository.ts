@@ -366,8 +366,67 @@ export class SupabaseBudgetRepository {
   }
 
   /**
+   * Usuwa fikcyjne dane demo (po testach / przed realnym użytkowaniem).
+   */
+  async purgeDemoData(): Promise<boolean> {
+    let changed = false;
+
+    const { data: demoTx } = await this.supabase
+      .from("transactions")
+      .select("id")
+      .eq("household_id", this.householdId)
+      .or("note.ilike.%demonstracyjne%,description.ilike.%(demo)%");
+
+    if (demoTx?.length) {
+      const ids = demoTx.map((t) => t.id as string);
+      const { error } = await this.supabase
+        .from("transactions")
+        .delete()
+        .in("id", ids);
+      if (error) throw new Error(error.message);
+      changed = true;
+    }
+
+    for (const table of [
+      "income_sources",
+      "recurring_bills",
+      "savings_goals",
+    ] as const) {
+      const { data: rows } = await this.supabase
+        .from(table)
+        .select("id")
+        .eq("household_id", this.householdId)
+        .ilike("name", "%(demo)%");
+      if (rows?.length) {
+        const ids = rows.map((r) => r.id as string);
+        const { error } = await this.supabase.from(table).delete().in("id", ids);
+        if (error) throw new Error(error.message);
+        changed = true;
+      }
+    }
+
+    const { data: demoAccounts } = await this.supabase
+      .from("accounts")
+      .select("id")
+      .eq("household_id", this.householdId)
+      .ilike("name", "%(demo)%");
+
+    if (demoAccounts?.length) {
+      const ids = demoAccounts.map((a) => a.id as string);
+      const { error } = await this.supabase
+        .from("accounts")
+        .delete()
+        .in("id", ids);
+      if (error) throw new Error(error.message);
+      changed = true;
+    }
+
+    return changed;
+  }
+
+  /**
    * Wczytuje fikcyjne dane demo do gospodarstwa (nie prawdziwe finanse).
-   * Dozwolone tylko gdy nie ma jeszcze transakcji / dochodów / rachunków.
+   * @deprecated Usunięte z UI — tylko do testów developerskich.
    */
   async seedDemoData(): Promise<void> {
     const demo = createDemoState();

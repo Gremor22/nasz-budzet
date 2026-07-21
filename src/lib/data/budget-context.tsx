@@ -67,7 +67,6 @@ interface BudgetContextValue {
   setGoalReserved: (id: string, reserved: boolean) => Promise<void>;
   saveSavingsGoal: (input: SavingsGoalInput & { id?: string }) => Promise<void>;
   removeSavingsGoal: (id: string) => Promise<void>;
-  seedDemo: () => Promise<void>;
   createInviteCode: () => Promise<string>;
   signOut: () => Promise<void>;
 }
@@ -144,9 +143,12 @@ export function BudgetProvider({ children }: { children: ReactNode }) {
       );
       const loaded = await repo.load();
       loaded.settings.asOfDate = todayIsoWarsaw();
-      const synced = applyIncomeSourceSync(loaded);
-      if (incomeSourceSyncChanged(loaded, synced)) {
-        await repo.persistIncomeSourceSync(loaded, synced);
+      const purged = await repo.purgeDemoData();
+      const base = purged ? await repo.load() : loaded;
+      base.settings.asOfDate = todayIsoWarsaw();
+      const synced = applyIncomeSourceSync(base);
+      if (incomeSourceSyncChanged(base, synced)) {
+        await repo.persistIncomeSourceSync(base, synced);
       }
       setState(synced);
       setHouseholdId(membership.household_id);
@@ -525,12 +527,6 @@ export function BudgetProvider({ children }: { children: ReactNode }) {
         return;
       }
       await repo.deleteSavingsGoal(id);
-      await refresh();
-    },
-    seedDemo: async () => {
-      const repo = await withRepo();
-      if (!repo) throw new Error("Brak gospodarstwa");
-      await repo.seedDemoData();
       await refresh();
     },
     createInviteCode: async () => {

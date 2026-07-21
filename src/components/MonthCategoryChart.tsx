@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import {
   Cell,
   Pie,
@@ -16,6 +17,12 @@ export function MonthCategoryChart({
 }: {
   slices: CategorySlice[];
 }) {
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
   if (slices.length === 0) {
     return (
       <p className="py-6 text-center text-sm text-[var(--ink-muted)]">
@@ -32,39 +39,45 @@ export function MonthCategoryChart({
   }));
 
   return (
-    <div className="w-full min-w-0 overflow-hidden">
-      <div className="h-40 w-full">
-        <ResponsiveContainer width="100%" height="100%">
-          <PieChart margin={{ top: 4, right: 4, bottom: 4, left: 4 }}>
-            <Pie
-              data={data}
-              dataKey="value"
-              nameKey="name"
-              cx="50%"
-              cy="50%"
-              innerRadius={36}
-              outerRadius={64}
-              paddingAngle={data.length > 1 ? 2 : 0}
-            >
-              {data.map((_, i) => (
-                <Cell
-                  key={i}
-                  fill={CATEGORY_CHART_COLORS[i % CATEGORY_CHART_COLORS.length]}
-                />
-              ))}
-            </Pie>
-            <Tooltip
-              formatter={(value, _name, item) => {
-                const p = item?.payload as { percent: number; name: string };
-                const n = Number(value);
-                return [
-                  `${n.toFixed(2)} zł (${p?.percent ?? 0}%)`,
-                  p?.name ?? "",
-                ];
-              }}
-            />
-          </PieChart>
-        </ResponsiveContainer>
+    <div className="w-full min-w-0">
+      <div className="relative h-[168px] w-full min-w-0">
+        {mounted ? (
+          <ResponsiveContainer width="100%" height="100%" minWidth={0}>
+            <PieChart>
+              <Pie
+                data={data}
+                dataKey="value"
+                nameKey="name"
+                cx="50%"
+                cy="50%"
+                innerRadius={42}
+                outerRadius={68}
+                paddingAngle={data.length > 1 ? 2 : 0}
+                stroke="var(--card)"
+                strokeWidth={2}
+              >
+                {data.map((entry, i) => (
+                  <Cell
+                    key={entry.name}
+                    fill={CATEGORY_CHART_COLORS[i % CATEGORY_CHART_COLORS.length]}
+                  />
+                ))}
+              </Pie>
+              <Tooltip
+                formatter={(value, _name, item) => {
+                  const p = item?.payload as { percent: number; name: string };
+                  const n = Number(value);
+                  return [
+                    `${n.toFixed(2)} zł (${p?.percent ?? 0}%)`,
+                    p?.name ?? "",
+                  ];
+                }}
+              />
+            </PieChart>
+          </ResponsiveContainer>
+        ) : (
+          <div className="h-full w-full animate-pulse rounded-xl bg-[var(--bg-accent)]" />
+        )}
       </div>
       <ul className="mt-3 space-y-2">
         {slices.slice(0, 5).map((c, i) => (
