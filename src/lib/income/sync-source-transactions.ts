@@ -1,5 +1,4 @@
 import {
-  addMonths,
   endOfMonth,
   format,
   parseISO,
@@ -42,12 +41,12 @@ function monthlyOnDayDates(
       "yyyy-MM-dd",
     );
     if (occ >= windowStart && occ <= windowEnd) out.push(occ);
-    cur = addMonths(cur, 1);
+    cur = new Date(cur.getFullYear(), cur.getMonth() + 1, 1);
   }
   return out;
 }
 
-/** Daty wpływów ze źródła w oknie (wstecz + naprzód — także bieżący miesiąc). */
+/** Daty wpływów ze źródła w oknie (od startu budżetu do końca bieżącego miesiąca). */
 export function listIncomeOccurrences(
   source: IncomeSource,
   windowStart: string,
@@ -125,9 +124,39 @@ function buildIncomeTx(
   };
 }
 
+function isAutoSyncedIncome(t: Transaction, source: IncomeSource): boolean {
+  if (t.type !== "income") return false;
+  if (t.incomeSourceId === source.id) return true;
+  // Sieroty po wyścigach sync / braku income_source_id przy zapisie
+  return (
+    !t.incomeSourceId &&
+    t.description === source.name &&
+    t.category === "Wpływ"
+  );
+}
+
+/**
+ * Zostaw jedną transakcję na datę (preferuj opłaconą + z incomeSourceId).
+ */
+function pickCanonical(
+  candidates: Transaction[],
+  sourceId: string,
+): Transaction {
+  return [...candidates].sort((a, b) => {
+    const aLinked = a.incomeSourceId === sourceId ? 1 : 0;
+    const bLinked = b.incomeSourceId === sourceId ? 1 : 0;
+    if (bLinked !== aLinked) return bLinked - aLinked;
+    const aPaid = a.status === "paid" ? 1 : 0;
+    const bPaid = b.status === "paid" ? 1 : 0;
+    if (bPaid !== aPaid) return bPaid - aPaid;
+    return a.id.localeCompare(b.id);
+  })[0]!;
+}
+
 /**
  * Źródła dochodu → transakcje wpływu (planowane / otrzymane).
- * Przeszłe i dzisiejsze daty = opłacone (saldo + wpływy), przyszłe = planowane.
+ * Okno: od startu budżetu do końca bieżącego miesiąca (bez miesięcy naprzód).
+ * Deduplikuje potrójne wpisy z wyścigów refresh.
  */
 export function applyIncomeSourceSync(state: BudgetState): BudgetState {
   const accountId = defaultAccountId(state);
@@ -135,10 +164,8 @@ export function applyIncomeSourceSync(state: BudgetState): BudgetState {
 
   const asOf = state.settings.asOfDate;
   const windowStart = resolveBudgetWindowStart(state);
-  const windowEnd = format(
-    endOfMonth(addMonths(parseISO(asOf), 2)),
-    "yyyy-MM-dd",
-  );
+  // Tylko do końca bieżącego miesiąca — nie generuj sierpnia/września z góry
+  const windowEnd = format(endOfMonth(parseISO(asOf)), "yyyy-MM-dd");
   const now = new Date().toISOString();
   const activeIds = new Set(state.incomeSources.map((s) => s.id));
 
@@ -149,6 +176,7 @@ export function applyIncomeSourceSync(state: BudgetState): BudgetState {
     if (!t.incomeSourceId) return true;
     return t.date >= windowStart;
   });
+
   transactions = transactions.filter((t) => {
     if (!t.incomeSourceId) return true;
     if (t.status === "paid") return true;
@@ -160,8 +188,7 @@ export function applyIncomeSourceSync(state: BudgetState): BudgetState {
   for (const source of state.incomeSources) {
     if (!source.active) {
       transactions = transactions.filter(
-        (t) =>
-          !(t.incomeSourceId === source.id && t.status === "planned"),
+        (t) => !(isAutoSyncedIncome(t, source) && t.status === "planned"),
       );
       continue;
     }
@@ -170,35 +197,55 @@ export function applyIncomeSourceSync(state: BudgetState): BudgetState {
       listIncomeOccurrences(source, windowStart, windowEnd),
     );
 
+    // Usuń planowane poza oknem; opłacone poza oknem zostaw (historia)
     transactions = transactions.filter((t) => {
-      if (t.incomeSourceId !== source.id) return true;
-      if (t.status === "paid") return true;
+      if (!isAutoSyncedIncome(t, source)) return true;
+      if (t.status === "paid" && !dates.has(t.date)) return true;
       return dates.has(t.date);
+    });
+
+    // Deduplikacja: max 1 wpis na datę (usuwa potrójne „Pensja”)
+    const byDate = new Map<string, Transaction[]>();
+    for (const t of transactions) {
+      if (!isAutoSyncedIncome(t, source)) continue;
+      if (!dates.has(t.date)) continue;
+      const list = byDate.get(t.date) ?? [];
+      list.push(t);
+      byDate.set(t.date, list);
+    }
+
+    const keepIds = new Set<string>();
+    for (const [, group] of byDate) {
+      const canonical = pickCanonical(group, source.id);
+      keepIds.add(canonical.id);
+    }
+
+    transactions = transactions.filter((t) => {
+      if (!isAutoSyncedIncome(t, source)) return true;
+      if (!dates.has(t.date)) return true;
+      return keepIds.has(t.id);
     });
 
     for (const date of dates) {
       const existing = transactions.find(
-        (t) =>
-          t.incomeSourceId === source.id &&
-          t.type === "income" &&
-          t.date === date,
+        (t) => isAutoSyncedIncome(t, source) && t.date === date,
       );
       const status = incomeStatus(date, asOf);
 
       if (existing) {
-        if (existing.status === "planned") {
-          transactions = transactions.map((t) =>
-            t.id === existing.id
-              ? {
-                  ...t,
-                  amountGrosze: source.typicalAmountGrosze,
-                  description: source.name,
-                  status,
-                  updatedAt: now,
-                }
-              : t,
-          );
-        }
+        transactions = transactions.map((t) =>
+          t.id === existing.id
+            ? {
+                ...t,
+                amountGrosze: source.typicalAmountGrosze,
+                description: source.name,
+                status:
+                  existing.status === "paid" ? "paid" : status,
+                incomeSourceId: source.id,
+                updatedAt: now,
+              }
+            : t,
+        );
         continue;
       }
 
@@ -226,7 +273,8 @@ export function incomeSourceSyncChanged(
       t.amountGrosze !== n.amountGrosze ||
       t.date !== n.date ||
       t.status !== n.status ||
-      t.description !== n.description
+      t.description !== n.description ||
+      t.incomeSourceId !== n.incomeSourceId
     ) {
       return true;
     }

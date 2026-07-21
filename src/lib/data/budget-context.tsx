@@ -6,6 +6,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
@@ -87,83 +88,99 @@ export function BudgetProvider({ children }: { children: ReactNode }) {
   const [householdId, setHouseholdId] = useState<string | null>(null);
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const refreshInFlight = useRef<Promise<void> | null>(null);
 
   const refresh = useCallback(async () => {
-    setError(null);
-
-    if (!hasSupabaseEnv()) {
-      setDataSource("local");
-      setHouseholdId(null);
-      setUserEmail(null);
-      setState(createDemoState());
-      setHydrated(true);
+    // Jedna synchronizacja naraz — bez wyścigów = bez potrójnej pensji
+    if (refreshInFlight.current) {
+      await refreshInFlight.current;
       return;
     }
 
-    const supabase = createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const run = (async () => {
+      setError(null);
 
-    if (!user) {
-      setDataSource("local");
-      setHouseholdId(null);
-      setUserEmail(null);
-      setHydrated(true);
-      return;
-    }
+      if (!hasSupabaseEnv()) {
+        setDataSource("local");
+        setHouseholdId(null);
+        setUserEmail(null);
+        setState(createDemoState());
+        setHydrated(true);
+        return;
+      }
 
-    setUserEmail(user.email ?? null);
+      const supabase = createClient();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
 
-    const { data: membership, error: memErr } = await supabase
-      .from("household_members")
-      .select("household_id")
-      .eq("user_id", user.id)
-      .order("created_at", { ascending: true })
-      .limit(1)
-      .maybeSingle();
+      if (!user) {
+        setDataSource("local");
+        setHouseholdId(null);
+        setUserEmail(null);
+        setHydrated(true);
+        return;
+      }
 
-    if (memErr) {
-      setError(memErr.message);
-      setHydrated(true);
-      return;
-    }
+      setUserEmail(user.email ?? null);
 
-    if (!membership) {
-      setHouseholdId(null);
-      setDataSource("supabase");
-      setHydrated(true);
-      return;
-    }
+      const { data: membership, error: memErr } = await supabase
+        .from("household_members")
+        .select("household_id")
+        .eq("user_id", user.id)
+        .order("created_at", { ascending: true })
+        .limit(1)
+        .maybeSingle();
 
-    try {
-      const repo = new SupabaseBudgetRepository(
-        supabase,
-        membership.household_id,
-      );
-      const loaded = await repo.load();
-      loaded.settings.asOfDate = todayIsoWarsaw();
-      await repo.purgeDemoData();
+      if (memErr) {
+        setError(memErr.message);
+        setHydrated(true);
+        return;
+      }
+
+      if (!membership) {
+        setHouseholdId(null);
+        setDataSource("supabase");
+        setHydrated(true);
+        return;
+      }
+
       try {
-        await repo.ensureBudgetStartedDate();
-      } catch {
-        /* kolumna budget_started_date — uruchom migrację SQL */
+        const repo = new SupabaseBudgetRepository(
+          supabase,
+          membership.household_id,
+        );
+        const loaded = await repo.load();
+        loaded.settings.asOfDate = todayIsoWarsaw();
+        await repo.purgeDemoData();
+        try {
+          await repo.ensureBudgetStartedDate();
+        } catch {
+          /* kolumna budget_started_date — uruchom migrację SQL */
+        }
+        const fresh = await repo.load();
+        fresh.settings.asOfDate = todayIsoWarsaw();
+        const synced = applyIncomeSourceSync(fresh);
+        if (incomeSourceSyncChanged(fresh, synced)) {
+          await repo.persistIncomeSourceSync(fresh, synced);
+        }
+        setState(synced);
+        setHouseholdId(membership.household_id);
+        setDataSource("supabase");
+        setHydrated(true);
+      } catch (e) {
+        setHouseholdId(membership.household_id);
+        setDataSource("supabase");
+        setError(e instanceof Error ? e.message : "Błąd wczytywania danych");
+        setHydrated(true);
       }
-      const fresh = await repo.load();
-      fresh.settings.asOfDate = todayIsoWarsaw();
-      const synced = applyIncomeSourceSync(fresh);
-      if (incomeSourceSyncChanged(fresh, synced)) {
-        await repo.persistIncomeSourceSync(fresh, synced);
-      }
-      setState(synced);
-      setHouseholdId(membership.household_id);
-      setDataSource("supabase");
-      setHydrated(true);
-    } catch (e) {
-      setHouseholdId(membership.household_id);
-      setDataSource("supabase");
-      setError(e instanceof Error ? e.message : "Błąd wczytywania danych");
-      setHydrated(true);
+    })();
+
+    refreshInFlight.current = run;
+    try {
+      await run;
+    } finally {
+      refreshInFlight.current = null;
     }
   }, []);
 

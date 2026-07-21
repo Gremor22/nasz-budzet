@@ -7,19 +7,20 @@ import {
   type ReactNode,
   type TouchEvent,
 } from "react";
+import { PossessedNyanDamian } from "@/components/PossessedNyanDamian";
 import { useBudget } from "@/lib/data/budget-context";
 
 const STREAK_RESET_MS = 60_000;
 const EASTER_EGG_AT = 5;
 
-/** Pull-to-refresh — easter egg (Nyan Cat) dopiero po 5. odświeżeniu z rzędu. */
+/** Pull-to-refresh — easter egg dopiero po 5. odświeżeniu z rzędu. */
 export function PullToRefresh({ children }: { children: ReactNode }) {
   const { refresh } = useBudget();
   const startY = useRef(0);
   const pulling = useRef(false);
   const [pullPx, setPullPx] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
-  const [showNyan, setShowNyan] = useState(false);
+  const [showEgg, setShowEgg] = useState(false);
   const streakRef = useRef(0);
   const lastPullAt = useRef(0);
 
@@ -29,14 +30,17 @@ export function PullToRefresh({ children }: { children: ReactNode }) {
     pulling.current = true;
   }, []);
 
-  const onTouchMove = useCallback((e: TouchEvent) => {
-    if (!pulling.current || refreshing) return;
-    const y = e.touches[0]?.clientY ?? 0;
-    const delta = Math.max(0, y - startY.current);
-    if (delta > 0 && window.scrollY <= 4) {
-      setPullPx(Math.min(delta * 0.45, 72));
-    }
-  }, [refreshing]);
+  const onTouchMove = useCallback(
+    (e: TouchEvent) => {
+      if (!pulling.current || refreshing) return;
+      const y = e.touches[0]?.clientY ?? 0;
+      const delta = Math.max(0, y - startY.current);
+      if (delta > 0 && window.scrollY <= 4) {
+        setPullPx(Math.min(delta * 0.45, 72));
+      }
+    },
+    [refreshing],
+  );
 
   const finishPull = useCallback(async () => {
     pulling.current = false;
@@ -62,10 +66,7 @@ export function PullToRefresh({ children }: { children: ReactNode }) {
       await refresh();
     } finally {
       setRefreshing(false);
-      if (triggerEgg) {
-        setShowNyan(true);
-        window.setTimeout(() => setShowNyan(false), 3200);
-      }
+      if (triggerEgg) setShowEgg(true);
     }
   }, [pullPx, refresh, refreshing]);
 
@@ -86,23 +87,19 @@ export function PullToRefresh({ children }: { children: ReactNode }) {
           style={{ height: pullPx > 0 ? pullPx : refreshing ? 32 : 0 }}
         >
           {(pullPx > 0 || refreshing) && (
-            <span>{refreshing ? "Odświeżam…" : pullPx >= 56 ? "Puść" : "Ciągnij w dół…"}</span>
+            <span>
+              {refreshing
+                ? "Odświeżam…"
+                : pullPx >= 56
+                  ? "Puść"
+                  : "Ciągnij w dół…"}
+            </span>
           )}
         </div>
         {children}
       </div>
-      {showNyan && (
-        <div
-          className="pointer-events-none fixed inset-0 z-[100] flex items-center justify-center bg-black/40"
-          aria-hidden
-        >
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src="/nyan-cat.gif"
-            alt=""
-            className="max-w-[min(92vw,360px)] animate-pulse drop-shadow-2xl"
-          />
-        </div>
+      {showEgg && (
+        <PossessedNyanDamian onDone={() => setShowEgg(false)} />
       )}
     </>
   );

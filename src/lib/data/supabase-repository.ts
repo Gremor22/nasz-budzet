@@ -184,10 +184,21 @@ export class SupabaseBudgetRepository {
       }
     }
 
+    // Usuń zbędne auto-sync (także opłacone duplikaty i sieroty bez income_source_id)
     for (const t of before.transactions) {
-      if (!afterById.has(t.id) && t.incomeSourceId && t.status === "planned") {
+      if (afterById.has(t.id)) continue;
+      if (t.incomeSourceId) {
         await this.deleteTransaction(t.id);
+        continue;
       }
+      if (t.type !== "income" || t.category !== "Wpływ") continue;
+      const replaced = after.transactions.some(
+        (a) =>
+          a.type === "income" &&
+          a.date === t.date &&
+          a.description === t.description,
+      );
+      if (replaced) await this.deleteTransaction(t.id);
     }
   }
 
