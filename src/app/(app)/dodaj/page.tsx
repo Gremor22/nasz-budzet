@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useBudget } from "@/lib/data/budget-context";
 import { Card, Label } from "@/components/ui";
 import type { ExpenseStatus, PersonId } from "@/lib/data/types";
@@ -10,6 +10,7 @@ import type { ExpenseStatus, PersonId } from "@/lib/data/types";
 export default function AddPage() {
   const { addExpense, addIncome, state, dataSource } = useBudget();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [kind, setKind] = useState<"expense" | "income">("expense");
   const [description, setDescription] = useState("");
   const [amountZl, setAmountZl] = useState("");
@@ -24,6 +25,13 @@ export default function AddPage() {
   const [accountId, setAccountId] = useState(defaultAccount);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    const typ = searchParams.get("typ");
+    if (typ === "wpływ" || typ === "wplyw" || typ === "income") {
+      setKind("income");
+    }
+  }, [searchParams]);
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
@@ -167,6 +175,7 @@ export default function AddPage() {
                 "Zdrowie",
                 "Rozrywka",
                 "Zakupy",
+                "Oszczędności",
                 "Inne",
               ].map((c) => (
                 <option key={c} value={c}>

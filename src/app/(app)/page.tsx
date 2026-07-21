@@ -1,230 +1,192 @@
 "use client";
 
+import Link from "next/link";
+import { useMemo, useState } from "react";
 import { useBudget } from "@/lib/data/budget-context";
+import { computeAnalytics } from "@/lib/analytics/summary";
+import {
+  monthKeyFromDate,
+  monthRangeFromKey,
+  savingsExpenseGrosze,
+  shiftMonthKey,
+} from "@/lib/analytics/month-range";
+import { MonthCategoryChart } from "@/components/MonthCategoryChart";
 import { Card, Label, Money } from "@/components/ui";
-import { formatDatePl, formatDateShortPl } from "@/lib/dates/calendar";
-import type { ForecastMode } from "@/lib/data/types";
-
-const MODE_LABELS: Record<ForecastMode, string> = {
-  cautious: "Ostrożny",
-  realistic: "Realistyczny",
-  full: "Pełna prognoza",
-};
-
-const MODE_HELP: Record<ForecastMode, string> = {
-  cautious: "Tylko potwierdzone wpływy.",
-  realistic:
-    "Potwierdzone + oczekiwane w kwocie bezpiecznej (nie pełnej typowej).",
-  full: "Uwzględnia też wpływy prognozowane i pełne typowe kwoty oczekiwanych.",
-};
+import { formatDateShortPl } from "@/lib/dates/calendar";
 
 export default function DashboardPage() {
-  const { state, forecast, changeMode, hydrated, dataSource } = useBudget();
+  const { state, hydrated, dataSource } = useBudget();
+  const [monthKey, setMonthKey] = useState(() =>
+    monthKeyFromDate(state.settings.asOfDate),
+  );
+
+  const range = useMemo(() => monthRangeFromKey(monthKey), [monthKey]);
+
+  const summary = useMemo(
+    () => computeAnalytics(state.transactions, range),
+    [state.transactions, range],
+  );
+
+  const savingsGrosze = useMemo(
+    () => savingsExpenseGrosze(state.transactions, range),
+    [state.transactions, range],
+  );
+
+  const monthTransactions = useMemo(
+    () =>
+      [...state.transactions]
+        .filter((t) => t.date >= range.start && t.date <= range.end)
+        .sort((a, b) => b.date.localeCompare(a.date) || b.createdAt.localeCompare(a.createdAt))
+        .slice(0, 8),
+    [state.transactions, range],
+  );
 
   if (!hydrated) {
-    return <p className="text-[var(--ink-muted)]">Ładowanie danych demo…</p>;
+    return <p className="text-[var(--ink-muted)]">Ładowanie…</p>;
   }
 
-  const safeTone =
-    forecast.safeToSpendGrosze < 0
+  const netTone =
+    summary.netGrosze < 0
       ? "danger"
-      : forecast.safeToSpendGrosze < forecast.safetyBufferGrosze + 50_000
-        ? "warn"
-        : "safe";
+      : summary.netGrosze > 0
+        ? "safe"
+        : "default";
 
   return (
     <div className="flex flex-col gap-4">
       <header>
-        {dataSource !== "supabase" && (
-          <p className="text-sm text-[var(--ink-muted)]">Tryb lokalny · demo</p>
-        )}
         <h1 className="text-2xl font-semibold tracking-tight">Nasz Budżet</h1>
-        <p className="text-sm text-[var(--ink-muted)]">
-          Gospodarstwo: {state.household.name}
-          {dataSource === "supabase" ? " · chmura" : " · lokalnie"}
-        </p>
+        <p className="text-sm text-[var(--ink-muted)]">{state.household.name}</p>
       </header>
 
-      <Card className="bg-gradient-to-br from-[#edf7f0] to-[var(--card)]" data-tour="safe-to-spend">
-        <Label>Bezpiecznie do wydania</Label>
-        <div className="mt-1">
-          <Money grosze={forecast.safeToSpendGrosze} size="xl" tone={safeTone} />
-        </div>
-        <p className="mt-2 text-sm text-[var(--ink-muted)]">
-          Na najbliższe {forecast.horizonDays} dni (do{" "}
-          {formatDateShortPl(forecast.horizonEndDate)}), tryb{" "}
-          <strong>{MODE_LABELS[forecast.mode]}</strong>.
+      <div
+        className="flex items-center justify-between gap-2"
+        data-tour="month-nav"
+      >
+        <button
+          type="button"
+          className="rounded-xl bg-[var(--bg-accent)] px-3 py-2 text-lg"
+          onClick={() => setMonthKey((k) => shiftMonthKey(k, -1))}
+          aria-label="Poprzedni miesiąc"
+        >
+          ‹
+        </button>
+        <p className="text-center text-lg font-semibold capitalize">
+          {range.label}
         </p>
-
-        <div className="mt-3 flex flex-wrap gap-2" data-tour="forecast-mode">
-          {(Object.keys(MODE_LABELS) as ForecastMode[]).map((mode) => (
-            <button
-              key={mode}
-              type="button"
-              onClick={() => changeMode(mode)}
-              className={`rounded-full px-3 py-1.5 text-sm ${
-                forecast.mode === mode
-                  ? "bg-[var(--accent)] text-white"
-                  : "bg-[var(--bg-accent)] text-[var(--ink)]"
-              }`}
-            >
-              {MODE_LABELS[mode]}
-            </button>
-          ))}
-        </div>
-        <p className="mt-3 text-sm leading-relaxed text-[var(--ink-muted)]">
-          {MODE_HELP[forecast.mode]} Bufor bezpieczeństwa:{" "}
-          <Money grosze={forecast.safetyBufferGrosze} size="sm" tone="muted" />.
-        </p>
-      </Card>
-
-      <div className="grid grid-cols-2 gap-3">
-        <Card>
-          <Label>Na koncie teraz</Label>
-          <div className="mt-1">
-            <Money grosze={forecast.currentBalanceGrosze} size="lg" />
-          </div>
-          <p className="mt-1 text-xs text-[var(--ink-muted)]">
-            Ustawione w szybkim starcie lub Więcej → Konta
-          </p>
-        </Card>
-        <Card>
-          <Label>Zarezerwowane</Label>
-          <div className="mt-1">
-            <Money grosze={forecast.reservedGrosze} size="lg" tone="warn" />
-          </div>
-          <p className="mt-1 text-xs text-[var(--ink-muted)]">
-            Cele i rezerwacje
-          </p>
-        </Card>
+        <button
+          type="button"
+          className="rounded-xl bg-[var(--bg-accent)] px-3 py-2 text-lg"
+          onClick={() => setMonthKey((k) => shiftMonthKey(k, 1))}
+          aria-label="Następny miesiąc"
+        >
+          ›
+        </button>
       </div>
 
-      <Card>
-        <Label>Przyszłe niepotwierdzone wpływy</Label>
-        <div className="mt-1">
-          <Money
-            grosze={forecast.unconfirmedIncomeInHorizonGrosze}
-            size="lg"
-            tone="muted"
-          />
-        </div>
-        <p className="mt-2 text-sm text-[var(--ink-muted)]">
-          To typowa suma oczekiwanych/prognozowanych wpływów w horyzoncie —{" "}
-          <strong>nie jest w pełni wliczana</strong> do „bezpiecznie do wydania”
-          w trybie realistycznym (tam bierze się kwotę bezpieczną).
-        </p>
-      </Card>
-
-      {forecast.nextConfirmedIncome && (
-        <Card>
-          <Label>Kolejny pewny wpływ</Label>
-          <p className="mt-1 text-lg font-semibold">
-            {forecast.nextConfirmedIncome.name}
-          </p>
-          <p className="text-sm text-[var(--ink-muted)]">
-            {formatDatePl(forecast.nextConfirmedIncome.date)} · za{" "}
-            {forecast.nextConfirmedIncome.daysUntil}{" "}
-            {forecast.nextConfirmedIncome.daysUntil === 1 ? "dzień" : "dni"}
-          </p>
-          <div className="mt-3 grid grid-cols-2 gap-2 text-sm">
-            <div>
-              <p className="text-[var(--ink-muted)]">Saldo przed</p>
-              <Money
-                grosze={forecast.nextConfirmedIncome.balanceBeforeGrosze}
-                size="sm"
-              />
+      <Card
+        className="bg-gradient-to-br from-[#edf7f0] to-[var(--card)]"
+        data-tour="month-summary"
+      >
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <span className="text-sm text-[var(--ink-muted)]">Wpływy</span>
+            <Money grosze={summary.incomeTotalGrosze} size="sm" tone="safe" />
+          </div>
+          <div className="flex items-center justify-between">
+            <span className="text-sm text-[var(--ink-muted)]">Wydatki</span>
+            <Money grosze={-summary.expenseTotalGrosze} size="sm" />
+          </div>
+          {savingsGrosze > 0 && (
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-[var(--ink-muted)]">
+                Oszczędności
+              </span>
+              <Money grosze={-savingsGrosze} size="sm" tone="warn" />
             </div>
-            <div>
-              <p className="text-[var(--ink-muted)]">Saldo po</p>
-              <Money
-                grosze={forecast.nextConfirmedIncome.balanceAfterGrosze}
-                size="sm"
-                tone="safe"
-              />
+          )}
+          <div className="border-t border-[var(--line)] pt-3">
+            <Label>Zostało w miesiącu</Label>
+            <div className="mt-1">
+              <Money grosze={summary.netGrosze} size="xl" tone={netTone} />
             </div>
           </div>
-          <p className="mt-2 text-xs text-[var(--ink-muted)]">
-            Horyzont pulpitu to nadal 14 dni — duży rachunek może być zaraz po
-            wpływie, dlatego patrzymy też dalej w prognozie.
-          </p>
-        </Card>
-      )}
-
-      <Card>
-        <Label>Najniższe przewidywane saldo</Label>
-        <div className="mt-1 flex flex-wrap items-baseline gap-2">
-          <Money
-            grosze={forecast.lowestBalanceGrosze}
-            size="lg"
-            tone={forecast.lowestBalanceGrosze < 0 ? "danger" : "default"}
-          />
-          {forecast.lowestBalanceDate && (
-            <span className="text-sm text-[var(--ink-muted)]">
-              {formatDatePl(forecast.lowestBalanceDate)}
-            </span>
-          )}
         </div>
-        {forecast.deficitGrosze > 0 && forecast.deficitDate && (
-          <p className="mt-3 rounded-xl bg-[#fde8e8] px-3 py-2 text-sm text-[var(--danger)]">
-            Przy obecnym planie może zabraknąć około{" "}
-            <Money grosze={forecast.deficitGrosze} size="sm" tone="danger" />{" "}
-            dnia {formatDatePl(forecast.deficitDate)}.
-          </p>
+      </Card>
+
+      <div className="flex flex-col gap-2" data-tour="quick-add">
+        {dataSource === "supabase" && (
+          <Link
+            href="/paragon"
+            className="rounded-xl bg-[var(--accent)] py-3 text-center text-sm font-medium text-white"
+          >
+            Zeskanuj paragon →
+          </Link>
         )}
+        <div className="flex gap-2">
+          <Link
+            href="/dodaj"
+            className="flex-1 rounded-xl bg-[var(--bg-accent)] py-3 text-center text-sm font-medium"
+          >
+            + Wydatek
+          </Link>
+          <Link
+            href="/dodaj?typ=wpływ"
+            className="flex-1 rounded-xl bg-[var(--bg-accent)] py-3 text-center text-sm font-medium"
+          >
+            + Wpływ
+          </Link>
+        </div>
+      </div>
+
+      <Card data-tour="month-chart">
+        <Label>Na co poszło</Label>
+        <MonthCategoryChart slices={summary.byCategory} />
       </Card>
 
       <Card>
         <div className="mb-2 flex items-center justify-between">
-          <Label>Najbliższe zdarzenia</Label>
-          <span className="text-xs text-[var(--ink-muted)]">
-            {forecast.events.length} w {forecast.horizonDays} dniach
-          </span>
+          <Label>W tym miesiącu</Label>
+          <Link href="/transakcje" className="text-xs text-[var(--accent)]">
+            Wszystkie →
+          </Link>
         </div>
-        <ul className="divide-y divide-[var(--line)]">
-          {forecast.events.slice(0, 8).map((event) => (
-            <li key={event.id} className="flex items-start justify-between gap-3 py-2.5">
-              <div>
-                <p className="font-medium">{event.name}</p>
-                <p className="text-xs text-[var(--ink-muted)]">
-                  {formatDateShortPl(event.date)}
-                  {event.confidence
-                    ? ` · ${
-                        event.confidence === "confirmed"
-                          ? "potwierdzony"
-                          : event.confidence === "expected"
-                            ? "oczekiwany"
-                            : "prognozowany"
-                      }`
-                    : ""}
-                </p>
-              </div>
-              <div className="text-right">
+        {monthTransactions.length === 0 ? (
+          <p className="py-3 text-sm text-[var(--ink-muted)]">
+            Nic jeszcze nie dodano. Użyj + lub zeskanuj paragon.
+          </p>
+        ) : (
+          <ul className="divide-y divide-[var(--line)]">
+            {monthTransactions.map((tx) => (
+              <li
+                key={tx.id}
+                className="flex items-center justify-between gap-2 py-2.5"
+              >
+                <div className="min-w-0">
+                  <p className="truncate font-medium">{tx.description}</p>
+                  <p className="text-xs text-[var(--ink-muted)]">
+                    {formatDateShortPl(tx.date)} · {tx.category}
+                  </p>
+                </div>
                 <Money
-                  grosze={event.appliedAmountGrosze}
+                  grosze={
+                    tx.type === "income" ? tx.amountGrosze : -tx.amountGrosze
+                  }
                   size="sm"
-                  tone={event.appliedAmountGrosze >= 0 ? "safe" : "default"}
+                  tone={tx.type === "income" ? "safe" : "default"}
                 />
-                <p className="text-xs text-[var(--ink-muted)]">
-                  po: {formatPlnInline(event.balanceAfterGrosze)}
-                </p>
-              </div>
-            </li>
-          ))}
-          {forecast.events.length === 0 && (
-            <li className="py-3 text-sm text-[var(--ink-muted)]">
-              Brak zaplanowanych zdarzeń w tym okresie.
-            </li>
-          )}
-        </ul>
+              </li>
+            ))}
+          </ul>
+        )}
       </Card>
+
+      <Link
+        href="/prognoza"
+        className="block rounded-xl border border-[var(--line)] px-3 py-3 text-center text-sm text-[var(--ink-muted)]"
+      >
+        Prognoza na przyszłość (zaawansowane) →
+      </Link>
     </div>
   );
-}
-
-function formatPlnInline(grosze: number): string {
-  const sign = grosze < 0 ? "−" : "";
-  const abs = Math.abs(grosze);
-  const zl = Math.floor(abs / 100);
-  const gr = abs % 100;
-  return `${sign}${zl},${gr.toString().padStart(2, "0")} zł`;
 }
