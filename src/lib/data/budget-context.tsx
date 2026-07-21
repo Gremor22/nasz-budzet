@@ -26,6 +26,8 @@ import type {
 } from "@/lib/data/types";
 import { computeForecast } from "@/lib/forecast/engine";
 import { todayIsoWarsaw } from "@/lib/dates/today";
+import { nextMonthlyPayDate } from "@/lib/dates/pay-day";
+import type { SimpleSetupInput } from "@/lib/data/simple-setup";
 
 type DataSource = "local" | "supabase" | "loading";
 
@@ -44,6 +46,9 @@ interface BudgetContextValue {
   addIncome: (
     input: Omit<Transaction, "id" | "createdAt" | "updatedAt" | "type">,
   ) => Promise<string>;
+  removeTransaction: (id: string) => Promise<void>;
+  completeSimpleSetup: (input: import("@/lib/data/simple-setup").SimpleSetupInput) => Promise<void>;
+  resetHouseholdBudget: () => Promise<void>;
   changeMode: (mode: ForecastMode) => Promise<void>;
   changeHorizon: (days: number) => Promise<void>;
   changeBufferZl: (zl: number) => Promise<void>;
@@ -217,6 +222,108 @@ export function BudgetProvider({ children }: { children: ReactNode }) {
       const id = await repo.addTransaction({ ...input, type: "income" });
       await refresh();
       return id;
+    },
+    removeTransaction: async (id) => {
+      const repo = await withRepo();
+      if (!repo) {
+        setState((prev) => ({
+          ...prev,
+          transactions: prev.transactions.filter((tx) => tx.id !== id),
+        }));
+        return;
+      }
+      await repo.deleteTransaction(id);
+      await refresh();
+    },
+    completeSimpleSetup: async (input: SimpleSetupInput) => {
+      const repo = await withRepo();
+      if (!repo) {
+        const day = input.incomeDayOfMonth ?? 1;
+        setState((prev) => {
+          const mainId = prev.accounts[0]?.id ?? "acc-main";
+          const accounts =
+            prev.accounts.length > 0
+              ? prev.accounts.map((a, i) =>
+                  i === 0
+                    ? {
+                        ...a,
+                        name: "Główne konto",
+                        openingBalanceGrosze: input.balanceGrosze,
+                      }
+                    : a,
+                )
+              : [
+                  {
+                    id: mainId,
+                    name: "Główne konto",
+                    owner: "shared" as const,
+                    type: "shared" as const,
+                    openingBalanceGrosze: input.balanceGrosze,
+                    includeInBudget: true,
+                    active: true,
+                  },
+                ];
+          const incomeSources =
+            input.incomeName?.trim() &&
+            input.incomeAmountGrosze &&
+            input.incomeAmountGrosze > 0
+              ? [
+                  {
+                    id: `inc-${crypto.randomUUID()}`,
+                    name: input.incomeName.trim(),
+                    owner: "pawel" as const,
+                    typicalAmountGrosze: input.incomeAmountGrosze,
+                    safeAmountGrosze: input.incomeAmountGrosze,
+                    frequency: "monthly_on_day" as const,
+                    dayOfMonth: day,
+                    nextOccurrenceDate: nextMonthlyPayDate(day),
+                    confidence: "expected" as const,
+                    active: true,
+                  },
+                ]
+              : prev.incomeSources;
+          return {
+            ...prev,
+            accounts,
+            incomeSources,
+            transactions: [],
+            recurringBills: [],
+            savingsGoals: [],
+            household: { ...prev.household, initialSetupDone: true },
+          };
+        });
+        return;
+      }
+      await repo.completeSimpleSetup(input);
+      await refresh();
+    },
+    resetHouseholdBudget: async () => {
+      const repo = await withRepo();
+      if (!repo) {
+        const fresh = createDemoState();
+        setState({
+          ...fresh,
+          household: { ...fresh.household, initialSetupDone: false },
+          accounts: [
+            {
+              id: "acc-main",
+              name: "Główne konto",
+              owner: "shared",
+              type: "shared",
+              openingBalanceGrosze: 0,
+              includeInBudget: true,
+              active: true,
+            },
+          ],
+          incomeSources: [],
+          recurringBills: [],
+          transactions: [],
+          savingsGoals: [],
+        });
+        return;
+      }
+      await repo.resetHouseholdBudget();
+      await refresh();
     },
     changeMode: async (mode) => {
       setState((prev) => ({

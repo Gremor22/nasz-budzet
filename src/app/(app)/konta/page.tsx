@@ -83,7 +83,8 @@ export default function AccountsPage() {
         </Link>
         <h1 className="mt-1 text-2xl font-semibold">Konta</h1>
         <p className="text-sm text-[var(--ink-muted)]">
-          Saldo startowe + transakcje = saldo w prognozie. Bez połączenia z bankiem.
+          „Aktualne saldo” na Pulpicie = suma sald startowych kont + opłacone
+          transakcje. Ustaw tu, ile macie teraz na koncie.
         </p>
       </header>
 

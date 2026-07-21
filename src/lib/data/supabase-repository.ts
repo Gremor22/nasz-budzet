@@ -19,6 +19,8 @@ import type {
   SavingsGoal,
 } from "@/lib/data/types";
 import { todayIsoWarsaw } from "@/lib/dates/today";
+import { nextMonthlyPayDate } from "@/lib/dates/pay-day";
+import type { SimpleSetupInput } from "@/lib/data/simple-setup";
 
 export type AccountInput = Omit<Account, "id">;
 export type IncomeSourceInput = Omit<IncomeSource, "id">;
@@ -112,6 +114,15 @@ export class SupabaseBudgetRepository {
 
     if (error) throw new Error(error.message);
     return data.id as string;
+  }
+
+  async deleteTransaction(id: string): Promise<void> {
+    const { error } = await this.supabase
+      .from("transactions")
+      .delete()
+      .eq("id", id)
+      .eq("household_id", this.householdId);
+    if (error) throw new Error(error.message);
   }
 
   async updateHouseholdSettings(input: {
@@ -427,5 +438,126 @@ export class SupabaseBudgetRepository {
       });
       if (error) throw new Error(error.message);
     }
+  }
+
+  /**
+   * Prosty start: jedno konto + opcjonalna pensja. Oznacza setup jako ukończony.
+   */
+  async completeSimpleSetup(input: SimpleSetupInput): Promise<void> {
+    const { data: accounts, error: accListErr } = await this.supabase
+      .from("accounts")
+      .select("id")
+      .eq("household_id", this.householdId)
+      .eq("include_in_budget", true)
+      .eq("active", true)
+      .order("created_at", { ascending: true })
+      .limit(1);
+
+    if (accListErr) throw new Error(accListErr.message);
+
+    let accountId = accounts?.[0]?.id as string | undefined;
+
+    if (accountId) {
+      const { error } = await this.supabase
+        .from("accounts")
+        .update({
+          name: "Główne konto",
+          opening_balance_grosze: input.balanceGrosze,
+        })
+        .eq("id", accountId)
+        .eq("household_id", this.householdId);
+      if (error) throw new Error(error.message);
+    } else {
+      const { data, error } = await this.supabase
+        .from("accounts")
+        .insert({
+          household_id: this.householdId,
+          name: "Główne konto",
+          owner_key: "shared",
+          account_type: "shared",
+          opening_balance_grosze: input.balanceGrosze,
+          include_in_budget: true,
+          active: true,
+        })
+        .select("id")
+        .single();
+      if (error || !data) throw new Error(error?.message ?? "Błąd konta");
+      accountId = data.id as string;
+    }
+
+    if (
+      input.incomeName?.trim() &&
+      input.incomeAmountGrosze &&
+      input.incomeAmountGrosze > 0
+    ) {
+      const day = input.incomeDayOfMonth ?? 1;
+      const { error: incErr } = await this.supabase.from("income_sources").insert({
+        household_id: this.householdId,
+        name: input.incomeName.trim(),
+        owner_key: "pawel",
+        typical_amount_grosze: input.incomeAmountGrosze,
+        safe_amount_grosze: input.incomeAmountGrosze,
+        frequency: "monthly_on_day",
+        day_of_month: day,
+        next_occurrence_date: nextMonthlyPayDate(day),
+        confidence: "expected",
+        active: true,
+      });
+      if (incErr) throw new Error(incErr.message);
+    }
+
+    const { error: hhErr } = await this.supabase
+      .from("households")
+      .update({ initial_setup_done: true })
+      .eq("id", this.householdId);
+    if (hhErr) throw new Error(hhErr.message);
+  }
+
+  /**
+   * Usuwa wszystkie dane budżetu i wraca do pustego startu (kreator od nowa).
+   */
+  async resetHouseholdBudget(): Promise<void> {
+    const tables = [
+      "transactions",
+      "income_sources",
+      "recurring_bills",
+      "savings_goals",
+      "classification_rules",
+      "receipts",
+    ] as const;
+
+    for (const table of tables) {
+      const { error } = await this.supabase
+        .from(table)
+        .delete()
+        .eq("household_id", this.householdId);
+      if (error) throw new Error(error.message);
+    }
+
+    const { error: delAccErr } = await this.supabase
+      .from("accounts")
+      .delete()
+      .eq("household_id", this.householdId);
+    if (delAccErr) throw new Error(delAccErr.message);
+
+    const { error: insAccErr } = await this.supabase.from("accounts").insert({
+      household_id: this.householdId,
+      name: "Główne konto",
+      owner_key: "shared",
+      account_type: "shared",
+      opening_balance_grosze: 0,
+      include_in_budget: true,
+      active: true,
+    });
+    if (insAccErr) throw new Error(insAccErr.message);
+
+    const { error: hhErr } = await this.supabase
+      .from("households")
+      .update({
+        safety_buffer_grosze: 0,
+        initial_setup_done: false,
+      })
+      .eq("id", this.householdId);
+    if (hhErr) throw new Error(hhErr.message);
   }
 }

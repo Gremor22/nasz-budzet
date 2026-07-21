@@ -113,7 +113,8 @@ export default function IncomePage() {
         </Link>
         <h1 className="mt-1 text-2xl font-semibold">Źródła dochodu</h1>
         <p className="text-sm text-[var(--ink-muted)]">
-          W trybie realistycznym wpływy oczekiwane liczą się w kwocie bezpiecznej.
+          Plan przyszłych wpływów (wypłaty, zlecenia). Nie zmienia „Aktualnego
+          salda” — ustaw je w Kontach albo dodaj wpływ w „+”.
         </p>
       </header>
 

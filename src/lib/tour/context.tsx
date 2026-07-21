@@ -35,7 +35,7 @@ const TourContext = createContext<TourContextValue | null>(null);
 export function TourProvider({ children }: { children: ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
-  const { hydrated, householdId, dataSource } = useBudget();
+  const { hydrated, householdId, dataSource, state } = useBudget();
   const includeReceipt = dataSource === "supabase";
   const steps = useMemo(
     () => getTourSteps(includeReceipt),
@@ -50,7 +50,9 @@ export function TourProvider({ children }: { children: ReactNode }) {
   const canRunTour =
     hydrated &&
     dataSource !== "loading" &&
+    state.household.initialSetupDone &&
     pathname !== "/onboarding" &&
+    pathname !== "/start" &&
     pathname !== "/paragon" &&
     (dataSource === "local" || Boolean(householdId));
 

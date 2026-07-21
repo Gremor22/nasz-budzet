@@ -35,7 +35,9 @@ export default function DashboardPage() {
   return (
     <div className="flex flex-col gap-4">
       <header>
-        <p className="text-sm text-[var(--ink-muted)]">Prototyp lokalny · demo</p>
+        {dataSource !== "supabase" && (
+          <p className="text-sm text-[var(--ink-muted)]">Tryb lokalny · demo</p>
+        )}
         <h1 className="text-2xl font-semibold tracking-tight">Nasz Budżet</h1>
         <p className="text-sm text-[var(--ink-muted)]">
           Gospodarstwo: {state.household.name}
@@ -78,12 +80,12 @@ export default function DashboardPage() {
 
       <div className="grid grid-cols-2 gap-3">
         <Card>
-          <Label>Aktualne saldo</Label>
+          <Label>Na koncie teraz</Label>
           <div className="mt-1">
             <Money grosze={forecast.currentBalanceGrosze} size="lg" />
           </div>
           <p className="mt-1 text-xs text-[var(--ink-muted)]">
-            Suma kont w budżecie
+            Ustawione w szybkim starcie lub Więcej → Konta
           </p>
         </Card>
         <Card>

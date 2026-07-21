@@ -18,6 +18,7 @@ export function createDemoState(): BudgetState {
       safetyBufferGrosze: 0,
       defaultForecastMode: "realistic",
       defaultHorizonDays: 14,
+      initialSetupDone: true,
     },
     accounts: [
       {

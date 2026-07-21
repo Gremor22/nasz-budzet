@@ -35,6 +35,8 @@ export interface Household {
   safetyBufferGrosze: number;
   defaultForecastMode: ForecastMode;
   defaultHorizonDays: number;
+  /** false = pokaż prosty kreator startu */
+  initialSetupDone: boolean;
 }
 
 export interface Account {

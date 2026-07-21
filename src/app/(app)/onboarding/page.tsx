@@ -44,7 +44,7 @@ export default function OnboardingPage() {
 
       // Ważne: odśwież kontekst, inaczej bramka znowu wróci na onboarding
       await refresh();
-      router.replace("/");
+      router.replace("/start");
       router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Błąd");

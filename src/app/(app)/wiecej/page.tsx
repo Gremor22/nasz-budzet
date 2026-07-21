@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useBudget } from "@/lib/data/budget-context";
 import { downloadBudgetExport } from "@/lib/data/export-client";
 import type { ExportFormat } from "@/lib/data/export";
@@ -20,7 +21,9 @@ export default function MorePage() {
     createInviteCode,
     signOut,
     setGoalReserved,
+    resetHouseholdBudget,
   } = useBudget();
+  const router = useRouter();
   const { startTour } = useTour();
   const [bufferInput, setBufferInput] = useState(
     String(state.household.safetyBufferGrosze / 100),
@@ -29,6 +32,29 @@ export default function MorePage() {
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [exporting, setExporting] = useState<ExportFormat | null>(null);
+  const [resetting, setResetting] = useState(false);
+
+  async function onResetBudget() {
+    const ok = window.confirm(
+      "Usunąć WSZYSTKIE transakcje, dochody, rachunki i cele?\n\nKonta wrócą do jednego pustego „Główne konto”. Potem przejdziesz przez szybki start od nowa.",
+    );
+    if (!ok) return;
+    const ok2 = window.confirm(
+      "Na pewno? Tej operacji nie cofniesz (możesz wcześniej zrobić backup JSON).",
+    );
+    if (!ok2) return;
+    setResetting(true);
+    setError(null);
+    setMessage(null);
+    try {
+      await resetHouseholdBudget();
+      router.replace("/start");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Nie udało się zresetować");
+    } finally {
+      setResetting(false);
+    }
+  }
 
   async function onExport(format: ExportFormat) {
     if (dataSource !== "supabase" && dataSource !== "local") return;
@@ -300,6 +326,22 @@ export default function MorePage() {
           {error ?? message}
         </p>
       )}
+
+      <Card>
+        <Label>Zresetuj budżet</Label>
+        <p className="mt-1 text-sm text-[var(--ink-muted)]">
+          Czyści wszystkie dane i uruchamia szybki start od zera. Przydatne po
+          testach albo gdy coś poszło nie tak (np. duplikaty).
+        </p>
+        <button
+          type="button"
+          disabled={resetting}
+          className="mt-3 w-full rounded-xl border border-[var(--danger)] py-2.5 text-sm text-[var(--danger)] disabled:opacity-60"
+          onClick={() => void onResetBudget()}
+        >
+          {resetting ? "Czyszczenie…" : "Zresetuj wszystko i zacznij od nowa"}
+        </button>
+      </Card>
 
       {dataSource === "supabase" && (
         <button

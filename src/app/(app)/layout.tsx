@@ -10,7 +10,7 @@ import { usePathname } from "next/navigation";
 function AppShell({ children }: { children: React.ReactNode }) {
   const { householdId, dataSource, hydrated } = useBudget();
   const pathname = usePathname();
-  const onOnboarding = pathname === "/onboarding";
+  const onOnboarding = pathname === "/onboarding" || pathname === "/start";
   const showNav =
     hydrated &&
     !(dataSource === "supabase" && (!householdId || onOnboarding));

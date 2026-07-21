@@ -23,9 +23,11 @@ export default function AddPage() {
     "";
   const [accountId, setAccountId] = useState(defaultAccount);
   const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
+    if (saving) return;
     setError(null);
     const zl = Number(amountZl.replace(",", "."));
     if (!description.trim()) {
@@ -60,6 +62,7 @@ export default function AddPage() {
     };
 
     try {
+      setSaving(true);
       if (kind === "expense") {
         await addExpense(base);
       } else {
@@ -71,6 +74,8 @@ export default function AddPage() {
       router.push("/transakcje");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Nie udało się zapisać");
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -221,9 +226,10 @@ export default function AddPage() {
 
           <button
             type="submit"
-            className="mt-2 rounded-xl bg-[var(--accent)] py-3 font-medium text-white"
+            disabled={saving}
+            className="mt-2 rounded-xl bg-[var(--accent)] py-3 font-medium text-white disabled:opacity-60"
           >
-            Zapisz
+            {saving ? "Zapisywanie…" : "Zapisz"}
           </button>
         </form>
       </Card>
