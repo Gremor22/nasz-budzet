@@ -4,7 +4,8 @@ import { useEffect, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useBudget } from "@/lib/data/budget-context";
-import { Card, Label } from "@/components/ui";
+import { EXPENSE_CATEGORIES } from "@/lib/categories";
+import { Card, DateField, fieldClass, Label } from "@/components/ui";
 import type { ExpenseStatus, PersonId } from "@/lib/data/types";
 
 export default function AddPage() {
@@ -76,6 +77,7 @@ export default function AddPage() {
       } else {
         await addIncome({
           ...base,
+          category: "Wpływ",
           status: status === "paid" ? "paid" : "planned",
         });
       }
@@ -88,7 +90,7 @@ export default function AddPage() {
   }
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex min-w-0 flex-col gap-4">
       <header>
         <h1 className="text-2xl font-semibold">Dodaj</h1>
         <p className="text-sm text-[var(--ink-muted)]">
@@ -136,7 +138,7 @@ export default function AddPage() {
           <div>
             <Label>Opis</Label>
             <input
-              className="mt-1 w-full rounded-xl border border-[var(--line)] bg-white px-3 py-2.5"
+              className={fieldClass}
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               placeholder="np. Zakupy"
@@ -145,7 +147,7 @@ export default function AddPage() {
           <div>
             <Label>Kwota (zł)</Label>
             <input
-              className="mt-1 w-full rounded-xl border border-[var(--line)] bg-white px-3 py-2.5"
+              className={fieldClass}
               inputMode="decimal"
               value={amountZl}
               onChange={(e) => setAmountZl(e.target.value)}
@@ -154,40 +156,28 @@ export default function AddPage() {
           </div>
           <div>
             <Label>Data</Label>
-            <input
-              type="date"
-              className="mt-1 w-full rounded-xl border border-[var(--line)] bg-white px-3 py-2.5"
-              value={date}
-              onChange={(e) => setDate(e.target.value)}
-            />
+            <DateField value={date} onChange={(e) => setDate(e.target.value)} />
           </div>
+          {kind === "expense" && (
           <div>
             <Label>Kategoria</Label>
             <select
-              className="mt-1 w-full rounded-xl border border-[var(--line)] bg-white px-3 py-2.5"
+              className={fieldClass}
               value={category}
               onChange={(e) => setCategory(e.target.value)}
             >
-              {[
-                "Jedzenie",
-                "Dom",
-                "Transport",
-                "Zdrowie",
-                "Rozrywka",
-                "Zakupy",
-                "Oszczędności",
-                "Inne",
-              ].map((c) => (
+              {EXPENSE_CATEGORIES.map((c) => (
                 <option key={c} value={c}>
                   {c}
                 </option>
               ))}
             </select>
           </div>
+          )}
           <div>
             <Label>Konto</Label>
             <select
-              className="mt-1 w-full rounded-xl border border-[var(--line)] bg-white px-3 py-2.5"
+              className={fieldClass}
               value={accountId}
               onChange={(e) => setAccountId(e.target.value)}
             >
@@ -202,7 +192,7 @@ export default function AddPage() {
           <div>
             <Label>Osoba</Label>
             <select
-              className="mt-1 w-full rounded-xl border border-[var(--line)] bg-white px-3 py-2.5"
+              className={fieldClass}
               value={person}
               onChange={(e) =>
                 setPerson(e.target.value as PersonId | "shared")
@@ -216,7 +206,7 @@ export default function AddPage() {
           <div>
             <Label>Status</Label>
             <select
-              className="mt-1 w-full rounded-xl border border-[var(--line)] bg-white px-3 py-2.5"
+              className={fieldClass}
               value={status}
               onChange={(e) => setStatus(e.target.value as ExpenseStatus)}
             >

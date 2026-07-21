@@ -36,7 +36,7 @@ export function BottomNav() {
                 key={item.href}
                 href={item.href}
                 data-tour="nav-add"
-                className="relative -top-3 flex h-14 w-14 items-center justify-center rounded-full bg-[var(--accent)] text-2xl font-semibold text-white shadow-md"
+                className="relative -top-2 flex h-12 w-12 items-center justify-center rounded-full bg-[var(--accent)] text-xl font-semibold text-white shadow-md"
                 aria-label="Dodaj"
               >
                 {item.icon}

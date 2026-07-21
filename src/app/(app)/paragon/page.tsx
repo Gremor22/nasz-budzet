@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useBudget } from "@/lib/data/budget-context";
+import { EXPENSE_CATEGORIES } from "@/lib/categories";
 import { Card, Label } from "@/components/ui";
 import { parseZlToGrosze } from "@/lib/data/form-options";
 import type { PersonId } from "@/lib/data/types";
@@ -53,16 +54,6 @@ function inferFailureFromNote(note?: string): OcrFailureKind {
   }
   return null;
 }
-
-const CATEGORIES = [
-  "Jedzenie",
-  "Transport",
-  "Dom",
-  "Zdrowie",
-  "Rozrywka",
-  "Ubrania",
-  "Inne",
-];
 
 type Step = "pick" | "review";
 
@@ -469,7 +460,7 @@ export default function ReceiptPage() {
                   value={category}
                   onChange={(e) => setCategory(e.target.value)}
                 >
-                  {CATEGORIES.map((c) => (
+                  {EXPENSE_CATEGORIES.map((c) => (
                     <option key={c} value={c}>
                       {c}
                     </option>
@@ -544,7 +535,7 @@ export default function ReceiptPage() {
                             setItems(next);
                           }}
                         >
-                          {CATEGORIES.map((c) => (
+                          {EXPENSE_CATEGORIES.map((c) => (
                             <option key={c} value={c}>
                               {c}
                             </option>

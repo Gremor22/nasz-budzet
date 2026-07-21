@@ -18,11 +18,19 @@ function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="mx-auto flex min-h-dvh w-full max-w-md flex-col pt-[env(safe-area-inset-top)]">
       <main
-        className={`flex-1 px-4 pt-4 ${
+        className={`min-w-0 flex-1 overflow-x-hidden px-4 pt-4 ${
           showNav
-            ? "pb-[calc(6.5rem+env(safe-area-inset-bottom))]"
+            ? "pb-[calc(9.5rem+env(safe-area-inset-bottom))]"
             : "pb-[calc(2rem+env(safe-area-inset-bottom))]"
         }`}
+        style={
+          showNav
+            ? {
+                scrollPaddingBottom:
+                  "calc(9.5rem + env(safe-area-inset-bottom))",
+              }
+            : undefined
+        }
       >
         {children}
       </main>

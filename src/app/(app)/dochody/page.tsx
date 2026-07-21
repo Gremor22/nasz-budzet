@@ -3,7 +3,7 @@
 import { useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useBudget } from "@/lib/data/budget-context";
-import { Card, Label, Money } from "@/components/ui";
+import { Card, DateField, fieldBareClass, fieldClass, Label, Money } from "@/components/ui";
 import {
   CONFIDENCE_OPTIONS,
   FREQUENCY_OPTIONS,
@@ -106,7 +106,7 @@ export default function IncomePage() {
   }
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex min-w-0 flex-col gap-4">
       <header>
         <Link href="/wiecej" className="text-sm text-[var(--accent)]">
           ← Więcej
@@ -157,13 +157,13 @@ export default function IncomePage() {
         <Label>{editingId ? "Edycja źródła" : "Nowe źródło"}</Label>
         <form className="mt-2 flex flex-col gap-3" onSubmit={onSubmit}>
           <input
-            className="w-full rounded-xl border border-[var(--line)] bg-white px-3 py-2.5"
+            className={fieldBareClass}
             placeholder="Nazwa (np. Pensja)"
             value={form.name}
             onChange={(e) => setForm({ ...form, name: e.target.value })}
           />
           <select
-            className="w-full rounded-xl border border-[var(--line)] bg-white px-3 py-2.5"
+            className={fieldBareClass}
             value={form.owner}
             onChange={(e) =>
               setForm({ ...form, owner: e.target.value as PersonId })
@@ -173,19 +173,19 @@ export default function IncomePage() {
             <option value="pawel">Paweł</option>
           </select>
           <div className="grid grid-cols-2 gap-2">
-            <div>
+            <div className="min-w-0">
               <Label>Typowa (zł)</Label>
               <input
-                className="mt-1 w-full rounded-xl border border-[var(--line)] bg-white px-3 py-2.5"
+                className={fieldClass}
                 inputMode="decimal"
                 value={form.typicalZl}
                 onChange={(e) => setForm({ ...form, typicalZl: e.target.value })}
               />
             </div>
-            <div>
+            <div className="min-w-0">
               <Label>Bezpieczna (zł)</Label>
               <input
-                className="mt-1 w-full rounded-xl border border-[var(--line)] bg-white px-3 py-2.5"
+                className={fieldClass}
                 inputMode="decimal"
                 value={form.safeZl}
                 onChange={(e) => setForm({ ...form, safeZl: e.target.value })}
@@ -193,7 +193,7 @@ export default function IncomePage() {
             </div>
           </div>
           <select
-            className="w-full rounded-xl border border-[var(--line)] bg-white px-3 py-2.5"
+            className={fieldBareClass}
             value={form.frequency}
             onChange={(e) =>
               setForm({
@@ -210,7 +210,7 @@ export default function IncomePage() {
           </select>
           {form.frequency === "monthly_on_day" && (
             <input
-              className="w-full rounded-xl border border-[var(--line)] bg-white px-3 py-2.5"
+              className={fieldBareClass}
               type="number"
               min={1}
               max={31}
@@ -221,9 +221,7 @@ export default function IncomePage() {
           )}
           <div>
             <Label>Następny wpływ</Label>
-            <input
-              type="date"
-              className="mt-1 w-full rounded-xl border border-[var(--line)] bg-white px-3 py-2.5"
+            <DateField
               value={form.nextOccurrenceDate}
               onChange={(e) =>
                 setForm({ ...form, nextOccurrenceDate: e.target.value })
@@ -231,7 +229,7 @@ export default function IncomePage() {
             />
           </div>
           <select
-            className="w-full rounded-xl border border-[var(--line)] bg-white px-3 py-2.5"
+            className={fieldBareClass}
             value={form.confidence}
             onChange={(e) =>
               setForm({

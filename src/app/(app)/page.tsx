@@ -11,6 +11,7 @@ import {
   shiftMonthKey,
 } from "@/lib/analytics/month-range";
 import { MonthCategoryChart } from "@/components/MonthCategoryChart";
+import { SpendingInsight } from "@/components/SpendingInsight";
 import { Card, Label, Money } from "@/components/ui";
 import { formatDateShortPl } from "@/lib/dates/calendar";
 
@@ -53,19 +54,19 @@ export default function DashboardPage() {
         : "default";
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex min-w-0 flex-col gap-4 overflow-x-hidden">
       <header>
         <h1 className="text-2xl font-semibold tracking-tight">Nasz Budżet</h1>
         <p className="text-sm text-[var(--ink-muted)]">{state.household.name}</p>
       </header>
 
       <div
-        className="flex items-center justify-between gap-2"
+        className="grid grid-cols-[2.75rem_1fr_2.75rem] items-center gap-2"
         data-tour="month-nav"
       >
         <button
           type="button"
-          className="rounded-xl bg-[var(--bg-accent)] px-3 py-2 text-lg"
+          className="rounded-xl bg-[var(--bg-accent)] px-3 py-2 text-lg leading-none"
           onClick={() => setMonthKey((k) => shiftMonthKey(k, -1))}
           aria-label="Poprzedni miesiąc"
         >
@@ -76,7 +77,7 @@ export default function DashboardPage() {
         </p>
         <button
           type="button"
-          className="rounded-xl bg-[var(--bg-accent)] px-3 py-2 text-lg"
+          className="rounded-xl bg-[var(--bg-accent)] px-3 py-2 text-lg leading-none"
           onClick={() => setMonthKey((k) => shiftMonthKey(k, 1))}
           aria-label="Następny miesiąc"
         >
@@ -106,8 +107,8 @@ export default function DashboardPage() {
             </div>
           )}
           <div className="border-t border-[var(--line)] pt-3">
-            <Label>Zostało w miesiącu</Label>
-            <div className="mt-1">
+            <div className="flex items-end justify-between gap-3">
+              <Label>Zostało w miesiącu</Label>
               <Money grosze={summary.netGrosze} size="xl" tone={netTone} />
             </div>
           </div>
@@ -141,8 +142,17 @@ export default function DashboardPage() {
 
       <Card data-tour="month-chart">
         <Label>Na co poszło</Label>
-        <MonthCategoryChart slices={summary.byCategory} />
+        <div className="mt-3">
+          <MonthCategoryChart slices={summary.byCategory} />
+        </div>
       </Card>
+
+      <SpendingInsight
+        summary={summary}
+        monthLabel={range.label}
+        monthKey={monthKey}
+        enabled={dataSource === "supabase"}
+      />
 
       <Card>
         <div className="mb-2 flex items-center justify-between">
@@ -160,21 +170,23 @@ export default function DashboardPage() {
             {monthTransactions.map((tx) => (
               <li
                 key={tx.id}
-                className="flex items-center justify-between gap-2 py-2.5"
+                className="flex items-center justify-between gap-3 py-2.5"
               >
-                <div className="min-w-0">
+                <div className="min-w-0 flex-1">
                   <p className="truncate font-medium">{tx.description}</p>
-                  <p className="text-xs text-[var(--ink-muted)]">
+                  <p className="truncate text-xs text-[var(--ink-muted)]">
                     {formatDateShortPl(tx.date)} · {tx.category}
                   </p>
                 </div>
-                <Money
-                  grosze={
-                    tx.type === "income" ? tx.amountGrosze : -tx.amountGrosze
-                  }
-                  size="sm"
-                  tone={tx.type === "income" ? "safe" : "default"}
-                />
+                <div className="shrink-0">
+                  <Money
+                    grosze={
+                      tx.type === "income" ? tx.amountGrosze : -tx.amountGrosze
+                    }
+                    size="sm"
+                    tone={tx.type === "income" ? "safe" : "default"}
+                  />
+                </div>
               </li>
             ))}
           </ul>

@@ -41,3 +41,39 @@ a {
   color: inherit;
   text-decoration: none;
 }
+
+/* Pola formularza — nie wychodzą poza kartę (szczególnie iOS Safari + type=date) */
+main input:not([type="checkbox"]):not([type="radio"]),
+main select,
+main textarea {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+main input[type="date"],
+main input[type="datetime-local"],
+main input[type="time"] {
+  -webkit-appearance: none;
+  appearance: none;
+  min-height: 2.75rem;
+}
+
+main input[type="date"]::-webkit-date-and-time-value {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-align: left;
+}
+
+main .grid > * {
+  min-width: 0;
+}
+
+/* Recharts — SVG nie wychodzi poza kontener */
+.recharts-responsive-container,
+.recharts-wrapper {
+  max-width: 100% !important;
+}
