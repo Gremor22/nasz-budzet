@@ -79,3 +79,27 @@ main .grid > * {
 .recharts-wrapper {
   max-width: 100% !important;
 }
+
+@keyframes nyan-slide {
+  0% {
+    background-position: 0 0;
+  }
+  100% {
+    background-position: 400px 0;
+  }
+}
+
+.nyan-rainbow {
+  background: repeating-linear-gradient(
+    90deg,
+    #ff0000 0 20px,
+    #ffa500 20px 40px,
+    #ffff00 40px 60px,
+    #00ff00 60px 80px,
+    #00ffff 80px 100px,
+    #0000ff 100px 120px,
+    #ff00ff 120px 140px
+  );
+  animation: nyan-slide 2s linear infinite;
+  opacity: 0.35;
+}

@@ -20,6 +20,10 @@ import type {
 } from "@/lib/data/types";
 import { todayIsoWarsaw } from "@/lib/dates/today";
 import { nextMonthlyPayDate } from "@/lib/dates/pay-day";
+
+function monthStartIso(iso: string): string {
+  return `${iso.slice(0, 7)}-01`;
+}
 import type { SimpleSetupInput } from "@/lib/data/simple-setup";
 
 export type AccountInput = Omit<Account, "id">;
@@ -365,6 +369,22 @@ export class SupabaseBudgetRepository {
     if (error) throw new Error(error.message);
   }
 
+  async ensureBudgetStartedDate(): Promise<void> {
+    const { data, error } = await this.supabase
+      .from("households")
+      .select("budget_started_date")
+      .eq("id", this.householdId)
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+    if (data?.budget_started_date) return;
+
+    const { error: updErr } = await this.supabase
+      .from("households")
+      .update({ budget_started_date: monthStartIso(todayIsoWarsaw()) })
+      .eq("id", this.householdId);
+    if (updErr) throw new Error(updErr.message);
+  }
+
   /**
    * Usuwa fikcyjne dane demo (po testach / przed realnym użytkowaniem).
    */
@@ -629,7 +649,10 @@ export class SupabaseBudgetRepository {
 
     const { error: hhErr } = await this.supabase
       .from("households")
-      .update({ initial_setup_done: true })
+      .update({
+        initial_setup_done: true,
+        budget_started_date: monthStartIso(todayIsoWarsaw()),
+      })
       .eq("id", this.householdId);
     if (hhErr) throw new Error(hhErr.message);
   }

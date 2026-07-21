@@ -31,6 +31,7 @@ describe("applyIncomeSourceSync", () => {
   it("creates paid income for past payday in current month", () => {
     const base = createDemoState();
     base.settings.asOfDate = "2026-07-21";
+    base.household.budgetStartedDate = "2026-07-01";
     base.incomeSources = [
       {
         id: "inc-1",
@@ -51,6 +52,9 @@ describe("applyIncomeSourceSync", () => {
       (t) => t.incomeSourceId === "inc-1" && t.date === "2026-07-10",
     );
     expect(july).toHaveLength(1);
+    expect(
+      synced.transactions.filter((t) => t.incomeSourceId === "inc-1"),
+    ).toHaveLength(3);
     expect(july[0]?.status).toBe("paid");
     expect(july[0]?.amountGrosze).toBe(210_000);
   });

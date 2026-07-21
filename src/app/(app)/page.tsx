@@ -11,7 +11,7 @@ import {
   savingsExpenseGrosze,
   shiftMonthKey,
 } from "@/lib/analytics/month-range";
-import { MonthCategoryChart } from "@/components/MonthCategoryChart";
+import { CategorySpendingChart } from "@/components/CategorySpendingChart";
 import { SpendingInsight } from "@/components/SpendingInsight";
 import { Card, Label, Money } from "@/components/ui";
 import { formatDateShortPl } from "@/lib/dates/calendar";
@@ -161,7 +161,7 @@ export default function DashboardPage() {
       <Card data-tour="month-chart">
         <Label>Na co poszło</Label>
         <div className="mt-3">
-          <MonthCategoryChart slices={summary.byCategory} />
+          <CategorySpendingChart slices={summary.byCategory} />
         </div>
       </Card>
 

@@ -37,6 +37,8 @@ export interface Household {
   defaultHorizonDays: number;
   /** false = pokaż prosty kreator startu */
   initialSetupDone: boolean;
+  /** Od tego miesiąca liczą się cykliczne wpływy (pensja). YYYY-MM-DD */
+  budgetStartedDate?: string;
 }
 
 export interface Account {

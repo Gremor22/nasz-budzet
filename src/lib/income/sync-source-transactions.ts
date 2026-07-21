@@ -8,6 +8,17 @@ import {
 import { addDaysIso, generateOccurrences } from "@/lib/dates/calendar";
 import type { BudgetState, IncomeSource, Transaction } from "@/lib/data/types";
 
+function resolveBudgetWindowStart(state: BudgetState): string {
+  const asOf = state.settings.asOfDate;
+  if (state.household.budgetStartedDate) {
+    return format(
+      startOfMonth(parseISO(state.household.budgetStartedDate)),
+      "yyyy-MM-dd",
+    );
+  }
+  return format(startOfMonth(parseISO(asOf)), "yyyy-MM-dd");
+}
+
 function defaultAccountId(state: BudgetState): string | null {
   return (
     state.accounts.find((a) => a.active && a.includeInBudget)?.id ?? null
@@ -123,12 +134,9 @@ export function applyIncomeSourceSync(state: BudgetState): BudgetState {
   if (!accountId) return state;
 
   const asOf = state.settings.asOfDate;
-  const windowStart = format(
-    addMonths(startOfMonth(parseISO(asOf)), -2),
-    "yyyy-MM-dd",
-  );
+  const windowStart = resolveBudgetWindowStart(state);
   const windowEnd = format(
-    endOfMonth(addMonths(parseISO(asOf), 12)),
+    endOfMonth(addMonths(parseISO(asOf), 2)),
     "yyyy-MM-dd",
   );
   const now = new Date().toISOString();
@@ -136,7 +144,11 @@ export function applyIncomeSourceSync(state: BudgetState): BudgetState {
 
   let transactions = [...state.transactions];
 
-  // Usuń planowane wpływy osierocone (źródło usunięte / nieaktywne)
+  // Usuń wpływy auto-sync sprzed startu budżetu
+  transactions = transactions.filter((t) => {
+    if (!t.incomeSourceId) return true;
+    return t.date >= windowStart;
+  });
   transactions = transactions.filter((t) => {
     if (!t.incomeSourceId) return true;
     if (t.status === "paid") return true;

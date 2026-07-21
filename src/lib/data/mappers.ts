@@ -7,6 +7,7 @@ export type DbHousehold = {
   default_forecast_mode: ForecastMode;
   default_horizon_days: number;
   initial_setup_done?: boolean;
+  budget_started_date?: string | null;
 };
 
 export type DbAccount = {
@@ -95,6 +96,7 @@ export function emptyBudgetState(
       defaultForecastMode: household.default_forecast_mode,
       defaultHorizonDays: household.default_horizon_days,
       initialSetupDone: household.initial_setup_done ?? true,
+      budgetStartedDate: household.budget_started_date ?? undefined,
     },
     accounts: [],
     incomeSources: [],
@@ -128,6 +130,7 @@ export function mapDbToBudgetState(input: {
       defaultForecastMode: household.default_forecast_mode,
       defaultHorizonDays: household.default_horizon_days,
       initialSetupDone: household.initial_setup_done ?? true,
+      budgetStartedDate: household.budget_started_date ?? undefined,
     },
     accounts: input.accounts.map((a) => ({
       id: a.id,

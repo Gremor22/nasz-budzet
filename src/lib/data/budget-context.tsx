@@ -143,12 +143,17 @@ export function BudgetProvider({ children }: { children: ReactNode }) {
       );
       const loaded = await repo.load();
       loaded.settings.asOfDate = todayIsoWarsaw();
-      const purged = await repo.purgeDemoData();
-      const base = purged ? await repo.load() : loaded;
-      base.settings.asOfDate = todayIsoWarsaw();
-      const synced = applyIncomeSourceSync(base);
-      if (incomeSourceSyncChanged(base, synced)) {
-        await repo.persistIncomeSourceSync(base, synced);
+      await repo.purgeDemoData();
+      try {
+        await repo.ensureBudgetStartedDate();
+      } catch {
+        /* kolumna budget_started_date — uruchom migrację SQL */
+      }
+      const fresh = await repo.load();
+      fresh.settings.asOfDate = todayIsoWarsaw();
+      const synced = applyIncomeSourceSync(fresh);
+      if (incomeSourceSyncChanged(fresh, synced)) {
+        await repo.persistIncomeSourceSync(fresh, synced);
       }
       setState(synced);
       setHouseholdId(membership.household_id);
@@ -299,7 +304,11 @@ export function BudgetProvider({ children }: { children: ReactNode }) {
             transactions: [],
             recurringBills: [],
             savingsGoals: [],
-            household: { ...prev.household, initialSetupDone: true },
+            household: {
+              ...prev.household,
+              initialSetupDone: true,
+              budgetStartedDate: `${todayIsoWarsaw().slice(0, 7)}-01`,
+            },
           });
         });
         return;
