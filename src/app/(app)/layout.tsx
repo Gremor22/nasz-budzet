@@ -2,7 +2,7 @@
 
 import { BudgetProvider, useBudget } from "@/lib/data/budget-context";
 import { AppFooter } from "@/components/AppFooter";
-import { PullToRefreshDamian } from "@/components/PullToRefreshDamian";
+import { PullToRefresh } from "@/components/PullToRefresh";
 import { BottomNav } from "@/components/BottomNav";
 import { HouseholdGate } from "@/components/HouseholdGate";
 import { ProductTour } from "@/components/ProductTour";
@@ -35,10 +35,10 @@ function AppShell({ children }: { children: React.ReactNode }) {
             : undefined
         }
       >
-        <PullToRefreshDamian>
+        <PullToRefresh>
           {children}
           <AppFooter />
-        </PullToRefreshDamian>
+        </PullToRefresh>
       </main>
       {showNav ? <BottomNav /> : null}
     </div>

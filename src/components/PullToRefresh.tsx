@@ -8,17 +8,18 @@ import {
   type TouchEvent,
 } from "react";
 import { useBudget } from "@/lib/data/budget-context";
-import { BouncingDamianHead } from "@/components/BouncingDamianHead";
 
-const STREAK_RESET_MS = 45_000;
+const STREAK_RESET_MS = 60_000;
+const EASTER_EGG_AT = 5;
 
-export function PullToRefreshDamian({ children }: { children: ReactNode }) {
+/** Pull-to-refresh — easter egg (Nyan Cat) dopiero po 5. odświeżeniu z rzędu. */
+export function PullToRefresh({ children }: { children: ReactNode }) {
   const { refresh } = useBudget();
   const startY = useRef(0);
   const pulling = useRef(false);
   const [pullPx, setPullPx] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
-  const [animMode, setAnimMode] = useState<"bounce" | "nyan" | null>(null);
+  const [showNyan, setShowNyan] = useState(false);
   const streakRef = useRef(0);
   const lastPullAt = useRef(0);
 
@@ -33,7 +34,7 @@ export function PullToRefreshDamian({ children }: { children: ReactNode }) {
     const y = e.touches[0]?.clientY ?? 0;
     const delta = Math.max(0, y - startY.current);
     if (delta > 0 && window.scrollY <= 4) {
-      setPullPx(Math.min(delta * 0.45, 88));
+      setPullPx(Math.min(delta * 0.45, 72));
     }
   }, [refreshing]);
 
@@ -51,17 +52,20 @@ export function PullToRefreshDamian({ children }: { children: ReactNode }) {
     lastPullAt.current = now;
     streakRef.current += 1;
 
-    const mode = streakRef.current >= 3 ? "nyan" : "bounce";
-    if (streakRef.current >= 3) streakRef.current = 0;
+    const triggerEgg = streakRef.current >= EASTER_EGG_AT;
+    if (triggerEgg) streakRef.current = 0;
 
     setPullPx(0);
     setRefreshing(true);
-    setAnimMode(mode);
 
     try {
       await refresh();
     } finally {
-      /* animacja kończy się w BouncingDamianHead */
+      setRefreshing(false);
+      if (triggerEgg) {
+        setShowNyan(true);
+        window.setTimeout(() => setShowNyan(false), 3200);
+      }
     }
   }, [pullPx, refresh, refreshing]);
 
@@ -78,38 +82,27 @@ export function PullToRefreshDamian({ children }: { children: ReactNode }) {
         onTouchEnd={onTouchEnd}
       >
         <div
-          className="flex items-center justify-center overflow-hidden transition-[height] duration-150"
-          style={{ height: pullPx > 0 ? pullPx : refreshing ? 48 : 0 }}
+          className="flex items-center justify-center overflow-hidden text-xs text-[var(--ink-muted)] transition-[height] duration-150"
+          style={{ height: pullPx > 0 ? pullPx : refreshing ? 32 : 0 }}
         >
           {(pullPx > 0 || refreshing) && (
-            <div className="flex flex-col items-center gap-1 text-xs text-[var(--ink-muted)]">
-              <div
-                className="h-10 w-10 overflow-hidden rounded-full border-2 border-[var(--accent)] bg-white shadow"
-                style={{
-                  transform: `translateY(${Math.min(pullPx * 0.2, 12)}px) rotate(${pullPx * 2}deg)`,
-                }}
-              >
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src="/damian-head.png"
-                  alt=""
-                  className="h-full w-full object-cover object-[center_18%] scale-125"
-                />
-              </div>
-              {pullPx >= 56 ? "Puść — odświeżam" : "Ciągnij w dół…"}
-            </div>
+            <span>{refreshing ? "Odświeżam…" : pullPx >= 56 ? "Puść" : "Ciągnij w dół…"}</span>
           )}
         </div>
         {children}
       </div>
-      {animMode && (
-        <BouncingDamianHead
-          mode={animMode}
-          onDone={() => {
-            setAnimMode(null);
-            setRefreshing(false);
-          }}
-        />
+      {showNyan && (
+        <div
+          className="pointer-events-none fixed inset-0 z-[100] flex items-center justify-center bg-black/40"
+          aria-hidden
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/nyan-cat.gif"
+            alt=""
+            className="max-w-[min(92vw,360px)] animate-pulse drop-shadow-2xl"
+          />
+        </div>
       )}
     </>
   );

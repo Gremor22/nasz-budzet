@@ -647,14 +647,25 @@ export class SupabaseBudgetRepository {
       if (incErr) throw new Error(incErr.message);
     }
 
+    const setupPatch = {
+      initial_setup_done: true,
+      budget_started_date: monthStartIso(todayIsoWarsaw()),
+    };
     const { error: hhErr } = await this.supabase
       .from("households")
-      .update({
-        initial_setup_done: true,
-        budget_started_date: monthStartIso(todayIsoWarsaw()),
-      })
+      .update(setupPatch)
       .eq("id", this.householdId);
-    if (hhErr) throw new Error(hhErr.message);
+    if (hhErr) {
+      if (/budget_started_date/i.test(hhErr.message)) {
+        const { error: fallbackErr } = await this.supabase
+          .from("households")
+          .update({ initial_setup_done: true })
+          .eq("id", this.householdId);
+        if (fallbackErr) throw new Error(fallbackErr.message);
+      } else {
+        throw new Error(hhErr.message);
+      }
+    }
   }
 
   /**
