@@ -19,6 +19,7 @@ export default function MorePage() {
     dataSource,
     userEmail,
     createInviteCode,
+    joinWithInviteCode,
     signOut,
     setGoalReserved,
     resetHouseholdBudget,
@@ -29,6 +30,8 @@ export default function MorePage() {
     String(state.household.safetyBufferGrosze / 100),
   );
   const [inviteCode, setInviteCode] = useState<string | null>(null);
+  const [joinCode, setJoinCode] = useState("");
+  const [joining, setJoining] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [exporting, setExporting] = useState<ExportFormat | null>(null);
@@ -116,16 +119,23 @@ export default function MorePage() {
         <Card>
           <Label>Zaproszenie do gospodarstwa</Label>
           <p className="mt-1 text-sm text-[var(--ink-muted)]">
-            Wygeneruj kod dla drugiej osoby (ważny 7 dni).
+            Paweł generuje kod → Milena wpisuje go poniżej (albo odwrotnie). Kod
+            ważny 7 dni.
+          </p>
+
+          <p className="mt-4 text-xs font-semibold uppercase tracking-wide text-[var(--ink-muted)]">
+            Wygeneruj kod dla drugiej osoby
           </p>
           <button
             type="button"
-            className="mt-3 w-full rounded-xl bg-[var(--accent)] py-2.5 text-white"
+            className="mt-2 w-full rounded-xl bg-[var(--accent)] py-2.5 text-white"
             onClick={async () => {
               setError(null);
+              setMessage(null);
               try {
                 const code = await createInviteCode();
                 setInviteCode(code);
+                setMessage("Kod wygenerowany — przekaż go drugiej osobie.");
               } catch (e) {
                 setError(e instanceof Error ? e.message : "Błąd");
               }
@@ -138,6 +148,56 @@ export default function MorePage() {
               {inviteCode}
             </p>
           )}
+
+          <div className="my-4 border-t border-[var(--line)]" />
+
+          <p className="text-xs font-semibold uppercase tracking-wide text-[var(--ink-muted)]">
+            Dołącz kodem od partnera
+          </p>
+          <p className="mt-1 text-sm text-[var(--ink-muted)]">
+            Masz kod od drugiej osoby? Wpisz go tutaj, żeby wejść do wspólnego
+            budżetu.
+          </p>
+          <form
+            className="mt-2 flex flex-col gap-2"
+            onSubmit={(e) => {
+              e.preventDefault();
+              void (async () => {
+                setError(null);
+                setMessage(null);
+                setJoining(true);
+                try {
+                  await joinWithInviteCode(joinCode);
+                  setJoinCode("");
+                  setMessage("Dołączono do gospodarstwa.");
+                  router.replace("/");
+                } catch (err) {
+                  setError(
+                    err instanceof Error ? err.message : "Nie udało się dołączyć",
+                  );
+                } finally {
+                  setJoining(false);
+                }
+              })();
+            }}
+          >
+            <input
+              className="w-full rounded-xl border border-[var(--line)] bg-white px-3 py-2.5 uppercase tracking-widest"
+              value={joinCode}
+              onChange={(e) => setJoinCode(e.target.value)}
+              placeholder="NP. A1B2C3D4"
+              autoCapitalize="characters"
+              autoCorrect="off"
+              spellCheck={false}
+            />
+            <button
+              type="submit"
+              disabled={joining || !joinCode.trim()}
+              className="w-full rounded-xl border border-[var(--accent)] py-2.5 text-[var(--accent)] disabled:opacity-60"
+            >
+              {joining ? "Dołączanie…" : "Dołącz do gospodarstwa"}
+            </button>
+          </form>
         </Card>
       )}
 

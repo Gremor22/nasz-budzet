@@ -44,7 +44,7 @@ interface BudgetContextValue {
   householdId: string | null;
   userEmail: string | null;
   error: string | null;
-  refresh: () => Promise<void>;
+  refresh: (opts?: { preferHouseholdId?: string }) => Promise<void>;
   addExpense: (
     input: Omit<Transaction, "id" | "createdAt" | "updatedAt" | "type">,
   ) => Promise<string>;
@@ -69,6 +69,7 @@ interface BudgetContextValue {
   saveSavingsGoal: (input: SavingsGoalInput & { id?: string }) => Promise<void>;
   removeSavingsGoal: (id: string) => Promise<void>;
   createInviteCode: () => Promise<string>;
+  joinWithInviteCode: (code: string) => Promise<void>;
   signOut: () => Promise<void>;
 }
 
@@ -90,10 +91,14 @@ export function BudgetProvider({ children }: { children: ReactNode }) {
   const [error, setError] = useState<string | null>(null);
   const refreshInFlight = useRef<Promise<void> | null>(null);
 
-  const refresh = useCallback(async () => {
+  const refresh = useCallback(async (opts?: { preferHouseholdId?: string }) => {
     // Jedna synchronizacja naraz — bez wyścigów = bez potrójnej pensji
     if (refreshInFlight.current) {
       await refreshInFlight.current;
+      // Po dołączeniu kodem musimy przeładować wskazane gospodarstwo
+      if (opts?.preferHouseholdId) {
+        return refresh(opts);
+      }
       return;
     }
 
@@ -124,21 +129,41 @@ export function BudgetProvider({ children }: { children: ReactNode }) {
 
       setUserEmail(user.email ?? null);
 
-      const { data: membership, error: memErr } = await supabase
-        .from("household_members")
-        .select("household_id")
-        .eq("user_id", user.id)
-        .order("created_at", { ascending: true })
-        .limit(1)
-        .maybeSingle();
+      let householdIdToLoad: string | null = null;
 
-      if (memErr) {
-        setError(memErr.message);
-        setHydrated(true);
-        return;
+      if (opts?.preferHouseholdId) {
+        const { data: preferred, error: prefErr } = await supabase
+          .from("household_members")
+          .select("household_id")
+          .eq("user_id", user.id)
+          .eq("household_id", opts.preferHouseholdId)
+          .maybeSingle();
+        if (prefErr) {
+          setError(prefErr.message);
+          setHydrated(true);
+          return;
+        }
+        householdIdToLoad = preferred?.household_id ?? null;
       }
 
-      if (!membership) {
+      if (!householdIdToLoad) {
+        const { data: membership, error: memErr } = await supabase
+          .from("household_members")
+          .select("household_id")
+          .eq("user_id", user.id)
+          .order("created_at", { ascending: true })
+          .limit(1)
+          .maybeSingle();
+
+        if (memErr) {
+          setError(memErr.message);
+          setHydrated(true);
+          return;
+        }
+        householdIdToLoad = membership?.household_id ?? null;
+      }
+
+      if (!householdIdToLoad) {
         setHouseholdId(null);
         setDataSource("supabase");
         setHydrated(true);
@@ -148,7 +173,7 @@ export function BudgetProvider({ children }: { children: ReactNode }) {
       try {
         const repo = new SupabaseBudgetRepository(
           supabase,
-          membership.household_id,
+          householdIdToLoad,
         );
         const loaded = await repo.load();
         loaded.settings.asOfDate = todayIsoWarsaw();
@@ -165,11 +190,11 @@ export function BudgetProvider({ children }: { children: ReactNode }) {
           await repo.persistIncomeSourceSync(fresh, synced);
         }
         setState(synced);
-        setHouseholdId(membership.household_id);
+        setHouseholdId(householdIdToLoad);
         setDataSource("supabase");
         setHydrated(true);
       } catch (e) {
-        setHouseholdId(membership.household_id);
+        setHouseholdId(householdIdToLoad);
         setDataSource("supabase");
         setError(e instanceof Error ? e.message : "Błąd wczytywania danych");
         setHydrated(true);
@@ -564,6 +589,20 @@ export function BudgetProvider({ children }: { children: ReactNode }) {
       });
       if (rpcError) throw new Error(rpcError.message);
       return String(data);
+    },
+    joinWithInviteCode: async (code: string) => {
+      const trimmed = code.trim();
+      if (!trimmed) throw new Error("Wpisz kod zaproszenia");
+      if (!hasSupabaseEnv()) {
+        throw new Error("Dołączanie wymaga konta w Supabase");
+      }
+      const supabase = createClient();
+      const { data, error: rpcError } = await supabase.rpc("accept_invitation", {
+        p_code: trimmed,
+      });
+      if (rpcError) throw new Error(rpcError.message);
+      const joinedId = data ? String(data) : undefined;
+      await refresh(joinedId ? { preferHouseholdId: joinedId } : undefined);
     },
     signOut: async () => {
       if (hasSupabaseEnv()) {

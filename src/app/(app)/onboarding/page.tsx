@@ -8,8 +8,8 @@ import { Card, Label } from "@/components/ui";
 
 export default function OnboardingPage() {
   const router = useRouter();
-  const { refresh, signOut } = useBudget();
-  const [mode, setMode] = useState<"create" | "join">("create");
+  const { refresh, signOut, joinWithInviteCode } = useBudget();
+  const [mode, setMode] = useState<"create" | "join">("join");
   const [name, setName] = useState("Paweł i Milena");
   const [code, setCode] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -58,15 +58,7 @@ export default function OnboardingPage() {
     setError(null);
     setLoading(true);
     try {
-      const supabase = createClient();
-      const { error: rpcError } = await supabase.rpc("accept_invitation", {
-        p_code: code.trim(),
-      });
-      if (rpcError) {
-        setError(rpcError.message);
-        return;
-      }
-      await refresh();
+      await joinWithInviteCode(code);
       router.replace("/");
       router.refresh();
     } catch (err) {
