@@ -74,6 +74,8 @@ export default function OnboardingPage() {
         <h1 className="text-2xl font-semibold">Gospodarstwo</h1>
         <p className="text-sm text-[var(--ink-muted)]">
           Utwórz wspólne gospodarstwo albo dołącz kodem zaproszenia.
+          Jeśli partner już ma budżet — wybierz{" "}
+          <strong>Dołącz kodem</strong>, nie twórz drugiego.
         </p>
       </header>
 

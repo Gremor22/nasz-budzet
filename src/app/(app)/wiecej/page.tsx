@@ -91,6 +91,12 @@ export default function MorePage() {
             ? `Zalogowano: ${userEmail ?? "—"}`
             : "Tryb lokalny (bez Supabase)"}
         </p>
+        {dataSource === "supabase" && state.household.name && (
+          <p className="mt-1 text-sm">
+            Gospodarstwo:{" "}
+            <span className="font-medium">{state.household.name}</span>
+          </p>
+        )}
       </header>
 
       <Card data-tour="wiecej-budget">

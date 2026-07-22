@@ -13,6 +13,10 @@ import {
 import { createClient } from "@/lib/supabase/client";
 import { createDemoState } from "@/lib/data/demo-data";
 import {
+  readActiveHouseholdId,
+  writeActiveHouseholdId,
+} from "@/lib/data/active-household";
+import {
   SupabaseBudgetRepository,
   type AccountInput,
   type IncomeSourceInput,
@@ -131,27 +135,48 @@ export function BudgetProvider({ children }: { children: ReactNode }) {
 
       let householdIdToLoad: string | null = null;
 
-      if (opts?.preferHouseholdId) {
-        const { data: preferred, error: prefErr } = await supabase
+      const resolveMembership = async (householdId: string) => {
+        const { data, error } = await supabase
           .from("household_members")
           .select("household_id")
           .eq("user_id", user.id)
-          .eq("household_id", opts.preferHouseholdId)
+          .eq("household_id", householdId)
           .maybeSingle();
-        if (prefErr) {
-          setError(prefErr.message);
+        if (error) throw new Error(error.message);
+        return data?.household_id ?? null;
+      };
+
+      // 1) Jawnie wskazane (po dołączeniu kodem)
+      if (opts?.preferHouseholdId) {
+        try {
+          householdIdToLoad = await resolveMembership(opts.preferHouseholdId);
+        } catch (e) {
+          setError(e instanceof Error ? e.message : "Błąd członkostwa");
           setHydrated(true);
           return;
         }
-        householdIdToLoad = preferred?.household_id ?? null;
       }
 
+      // 2) Zapamiętane w przeglądarce (żeby nie wracać do starego pustego HH)
+      if (!householdIdToLoad) {
+        const stored = readActiveHouseholdId();
+        if (stored) {
+          try {
+            householdIdToLoad = await resolveMembership(stored);
+          } catch {
+            householdIdToLoad = null;
+          }
+          if (!householdIdToLoad) writeActiveHouseholdId(null);
+        }
+      }
+
+      // 3) Najnowsze członkostwo (po dołączeniu kodem — nie najstarsze puste)
       if (!householdIdToLoad) {
         const { data: membership, error: memErr } = await supabase
           .from("household_members")
           .select("household_id")
           .eq("user_id", user.id)
-          .order("created_at", { ascending: true })
+          .order("created_at", { ascending: false })
           .limit(1)
           .maybeSingle();
 
@@ -165,6 +190,7 @@ export function BudgetProvider({ children }: { children: ReactNode }) {
 
       if (!householdIdToLoad) {
         setHouseholdId(null);
+        writeActiveHouseholdId(null);
         setDataSource("supabase");
         setHydrated(true);
         return;
@@ -191,10 +217,12 @@ export function BudgetProvider({ children }: { children: ReactNode }) {
         }
         setState(synced);
         setHouseholdId(householdIdToLoad);
+        writeActiveHouseholdId(householdIdToLoad);
         setDataSource("supabase");
         setHydrated(true);
       } catch (e) {
         setHouseholdId(householdIdToLoad);
+        writeActiveHouseholdId(householdIdToLoad);
         setDataSource("supabase");
         setError(e instanceof Error ? e.message : "Błąd wczytywania danych");
         setHydrated(true);
@@ -602,6 +630,7 @@ export function BudgetProvider({ children }: { children: ReactNode }) {
       });
       if (rpcError) throw new Error(rpcError.message);
       const joinedId = data ? String(data) : undefined;
+      if (joinedId) writeActiveHouseholdId(joinedId);
       await refresh(joinedId ? { preferHouseholdId: joinedId } : undefined);
     },
     signOut: async () => {
@@ -609,6 +638,7 @@ export function BudgetProvider({ children }: { children: ReactNode }) {
         const supabase = createClient();
         await supabase.auth.signOut();
       }
+      writeActiveHouseholdId(null);
       window.location.href = "/logowanie";
     },
   };
