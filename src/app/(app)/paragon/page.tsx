@@ -64,7 +64,8 @@ type LineItem = {
 };
 
 export default function ReceiptPage() {
-  const { state, hydrated, dataSource, householdId, addExpense } = useBudget();
+  const { state, hydrated, dataSource, householdId, addExpense, myPersonId } =
+    useBudget();
   const router = useRouter();
   const [step, setStep] = useState<Step>("pick");
   const [receiptId, setReceiptId] = useState<string | null>(null);
@@ -86,12 +87,20 @@ export default function ReceiptPage() {
   const galleryInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    const def =
-      state.accounts.find((a) => a.includeInBudget && a.active)?.id ??
-      state.accounts[0]?.id ??
+    if (myPersonId) setPerson(myPersonId);
+  }, [myPersonId]);
+
+  useEffect(() => {
+    const preferred =
+      (myPersonId &&
+        state.accounts.find(
+          (a) => a.active && a.includeInBudget && a.owner === myPersonId,
+        )?.id) ||
+      state.accounts.find((a) => a.includeInBudget && a.active)?.id ||
+      state.accounts[0]?.id ||
       "";
-    setAccountId((prev) => prev || def);
-  }, [state.accounts]);
+    setAccountId((prev) => prev || preferred);
+  }, [state.accounts, myPersonId]);
 
   if (!hydrated) {
     return <p className="text-[var(--ink-muted)]">Ładowanie…</p>;
@@ -468,7 +477,7 @@ export default function ReceiptPage() {
                 </select>
               </div>
               <div>
-                <Label>Konto</Label>
+                <Label>Z którego konta?</Label>
                 <select
                   className="mt-1 w-full rounded-xl border border-[var(--line)] bg-white px-3 py-2.5"
                   value={accountId}
@@ -479,12 +488,17 @@ export default function ReceiptPage() {
                     .map((a) => (
                       <option key={a.id} value={a.id}>
                         {a.name}
+                        {a.owner === "pawel"
+                          ? " · Paweł"
+                          : a.owner === "milena"
+                            ? " · Milena"
+                            : " · wspólne"}
                       </option>
                     ))}
                 </select>
               </div>
               <div>
-                <Label>Kto</Label>
+                <Label>Kto kupił / dla kogo?</Label>
                 <select
                   className="mt-1 w-full rounded-xl border border-[var(--line)] bg-white px-3 py-2.5"
                   value={person}
@@ -492,9 +506,9 @@ export default function ReceiptPage() {
                     setPerson(e.target.value as PersonId | "shared")
                   }
                 >
-                  <option value="shared">Wspólne</option>
                   <option value="pawel">Paweł</option>
                   <option value="milena">Milena</option>
+                  <option value="shared">Wspólne</option>
                 </select>
               </div>
 

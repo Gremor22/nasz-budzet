@@ -48,6 +48,11 @@ export default function DashboardPage() {
     [state, myPersonId],
   );
 
+  const accountLabel = useMemo(() => {
+    const map = new Map(state.accounts.map((a) => [a.id, a.name]));
+    return (id: string) => map.get(id) ?? "";
+  }, [state.accounts]);
+
   if (!hydrated) {
     return <p className="text-[var(--ink-muted)]">Ładowanie…</p>;
   }
@@ -222,6 +227,9 @@ export default function DashboardPage() {
                   <p className="truncate font-medium">{tx.description}</p>
                   <p className="truncate text-xs text-[var(--ink-muted)]">
                     {formatDateShortPl(tx.date)} · {tx.category}
+                    {accountLabel(tx.accountId)
+                      ? ` · ${accountLabel(tx.accountId)}`
+                      : ""}
                   </p>
                 </div>
                 <div className="shrink-0">

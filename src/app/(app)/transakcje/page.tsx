@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useBudget } from "@/lib/data/budget-context";
 import { Card, Label, Money } from "@/components/ui";
 import { formatDateShortPl } from "@/lib/dates/calendar";
+import type { PersonId } from "@/lib/data/types";
 
 const STATUS_PL: Record<string, string> = {
   paid: "opłacony",
@@ -13,10 +14,21 @@ const STATUS_PL: Record<string, string> = {
   uncertain: "niepewny",
 };
 
+const PERSON_PL: Record<PersonId | "shared", string> = {
+  pawel: "Paweł",
+  milena: "Milena",
+  shared: "wspólne",
+};
+
 export default function TransactionsPage() {
   const { state, hydrated, removeTransaction } = useBudget();
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  const accountName = useMemo(() => {
+    const map = new Map(state.accounts.map((a) => [a.id, a.name]));
+    return (id: string) => map.get(id) ?? "konto";
+  }, [state.accounts]);
 
   if (!hydrated) {
     return <p className="text-[var(--ink-muted)]">Ładowanie…</p>;
@@ -49,9 +61,6 @@ export default function TransactionsPage() {
     <div className="flex flex-col gap-4">
       <header>
         <h1 className="text-2xl font-semibold">Transakcje</h1>
-        <p className="text-sm text-[var(--ink-muted)]">
-          Lista wpłat i wydatków. Usuń duplikat przyciskiem „Usuń” po prawej.
-        </p>
       </header>
 
       {error && (
@@ -63,7 +72,7 @@ export default function TransactionsPage() {
       <Card>
         {sorted.length === 0 ? (
           <p className="py-4 text-sm text-[var(--ink-muted)]">
-            Brak transakcji. Dodaj wydatek lub wpływ w zakładce „+”.
+            Brak transakcji.
           </p>
         ) : (
           <ul className="divide-y divide-[var(--line)]">
@@ -77,6 +86,13 @@ export default function TransactionsPage() {
                   <p className="text-xs text-[var(--ink-muted)]">
                     {formatDateShortPl(tx.date)} · {tx.category} ·{" "}
                     {STATUS_PL[tx.status] ?? tx.status}
+                  </p>
+                  <p className="text-xs text-[var(--ink-muted)]">
+                    {tx.type === "expense" ? "z konta" : "na konto"}{" "}
+                    {accountName(tx.accountId)}
+                    {" · "}
+                    {tx.type === "expense" ? "kupił/a" : "wpływ"}{" "}
+                    {PERSON_PL[tx.person] ?? tx.person}
                   </p>
                 </div>
                 <div className="flex shrink-0 flex-col items-end gap-1">
@@ -104,22 +120,13 @@ export default function TransactionsPage() {
 
       <Card>
         <Label>Źródła dochodu (plan)</Label>
-        <p className="mt-1 text-xs text-[var(--ink-muted)]">
-          To przyszłe wpływy w prognozie — nie zmieniają „Aktualnego salda” na
-          Pulpicie.
-        </p>
         <ul className="mt-2 divide-y divide-[var(--line)]">
           {state.incomeSources.map((s) => (
             <li key={s.id} className="py-2 text-sm">
               <p className="font-medium">{s.name}</p>
               <p className="text-[var(--ink-muted)]">
-                typowa <Money grosze={s.typicalAmountGrosze} size="sm" /> ·
-                bezpieczna <Money grosze={s.safeAmountGrosze} size="sm" /> ·{" "}
-                {s.confidence === "confirmed"
-                  ? "potwierdzony"
-                  : s.confidence === "expected"
-                    ? "oczekiwany"
-                    : "prognozowany"}
+                typowa <Money grosze={s.typicalAmountGrosze} size="sm" /> ·{" "}
+                {PERSON_PL[s.owner]}
               </p>
             </li>
           ))}

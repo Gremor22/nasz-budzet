@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useBudget } from "@/lib/data/budget-context";
@@ -8,8 +8,14 @@ import { EXPENSE_CATEGORIES } from "@/lib/categories";
 import { Card, DateField, fieldClass, Label } from "@/components/ui";
 import type { ExpenseStatus, PersonId } from "@/lib/data/types";
 
+const PERSON_LABEL: Record<PersonId | "shared", string> = {
+  pawel: "Paweł",
+  milena: "Milena",
+  shared: "Wspólne",
+};
+
 export default function AddPage() {
-  const { addExpense, addIncome, state, dataSource } = useBudget();
+  const { addExpense, addIncome, state, dataSource, myPersonId } = useBudget();
   const router = useRouter();
   const searchParams = useSearchParams();
   const [kind, setKind] = useState<"expense" | "income">("expense");
@@ -17,15 +23,33 @@ export default function AddPage() {
   const [amountZl, setAmountZl] = useState("");
   const [date, setDate] = useState(state.settings.asOfDate);
   const [category, setCategory] = useState("Jedzenie");
-  const [person, setPerson] = useState<PersonId | "shared">("shared");
+  const [person, setPerson] = useState<PersonId | "shared">(
+    myPersonId ?? "shared",
+  );
   const [status, setStatus] = useState<ExpenseStatus>("paid");
-  const defaultAccount =
-    state.accounts.find((a) => a.includeInBudget && a.active)?.id ??
-    state.accounts[0]?.id ??
-    "";
-  const [accountId, setAccountId] = useState(defaultAccount);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+
+  const activeAccounts = useMemo(
+    () => state.accounts.filter((a) => a.active),
+    [state.accounts],
+  );
+
+  const preferredAccountId = useMemo(() => {
+    if (myPersonId) {
+      const mine = activeAccounts.find(
+        (a) => a.includeInBudget && a.owner === myPersonId,
+      );
+      if (mine) return mine.id;
+    }
+    return (
+      activeAccounts.find((a) => a.includeInBudget)?.id ??
+      activeAccounts[0]?.id ??
+      ""
+    );
+  }, [activeAccounts, myPersonId]);
+
+  const [accountId, setAccountId] = useState(preferredAccountId);
 
   useEffect(() => {
     const typ = searchParams.get("typ");
@@ -33,6 +57,14 @@ export default function AddPage() {
       setKind("income");
     }
   }, [searchParams]);
+
+  useEffect(() => {
+    if (myPersonId) setPerson(myPersonId);
+  }, [myPersonId]);
+
+  useEffect(() => {
+    if (preferredAccountId) setAccountId(preferredAccountId);
+  }, [preferredAccountId]);
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
@@ -52,12 +84,11 @@ export default function AddPage() {
       accountId ||
       state.accounts.find((a) => a.includeInBudget)?.id;
     if (!chosen) {
-      setError(
-        "Brak konta. Dodaj konto w Więcej → Konta albo wczytaj dane demo.",
-      );
+      setError("Brak konta. Dodaj konto w Więcej → Konta.");
       return;
     }
 
+    const account = state.accounts.find((a) => a.id === chosen);
     const base = {
       amountGrosze,
       date,
@@ -65,7 +96,7 @@ export default function AddPage() {
       category,
       person,
       paidBy: person,
-      isShared: person === "shared",
+      isShared: person === "shared" || account?.owner === "shared",
       status,
       accountId: chosen,
     };
@@ -93,9 +124,11 @@ export default function AddPage() {
     <div className="flex min-w-0 flex-col gap-4">
       <header>
         <h1 className="text-2xl font-semibold">Dodaj</h1>
-        <p className="text-sm text-[var(--ink-muted)]">
-          Zapis w {dataSource === "supabase" ? "Supabase (wspólny)" : "przeglądarce"}.
-        </p>
+        {myPersonId && (
+          <p className="text-sm text-[var(--ink-muted)]">
+            Zapisujesz jako {PERSON_LABEL[myPersonId]}
+          </p>
+        )}
       </header>
 
       {dataSource === "supabase" && (
@@ -141,7 +174,9 @@ export default function AddPage() {
               className={fieldClass}
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              placeholder="np. Zakupy"
+              placeholder={
+                kind === "expense" ? "np. Monster / Ikea" : "np. Pensja"
+              }
             />
           </div>
           <div>
@@ -159,38 +194,47 @@ export default function AddPage() {
             <DateField value={date} onChange={(e) => setDate(e.target.value)} />
           </div>
           {kind === "expense" && (
-          <div>
-            <Label>Kategoria</Label>
-            <select
-              className={fieldClass}
-              value={category}
-              onChange={(e) => setCategory(e.target.value)}
-            >
-              {EXPENSE_CATEGORIES.map((c) => (
-                <option key={c} value={c}>
-                  {c}
-                </option>
-              ))}
-            </select>
-          </div>
+            <div>
+              <Label>Kategoria</Label>
+              <select
+                className={fieldClass}
+                value={category}
+                onChange={(e) => setCategory(e.target.value)}
+              >
+                {EXPENSE_CATEGORIES.map((c) => (
+                  <option key={c} value={c}>
+                    {c}
+                  </option>
+                ))}
+              </select>
+            </div>
           )}
           <div>
-            <Label>Konto</Label>
+            <Label>
+              {kind === "expense" ? "Z którego konta?" : "Na które konto?"}
+            </Label>
             <select
               className={fieldClass}
               value={accountId}
               onChange={(e) => setAccountId(e.target.value)}
             >
-              {state.accounts.filter((a) => a.active).map((a) => (
+              {activeAccounts.map((a) => (
                 <option key={a.id} value={a.id}>
                   {a.name}
+                  {a.owner === "pawel"
+                    ? " · Paweł"
+                    : a.owner === "milena"
+                      ? " · Milena"
+                      : " · wspólne"}
                   {!a.includeInBudget ? " (poza budżetem)" : ""}
                 </option>
               ))}
             </select>
           </div>
           <div>
-            <Label>Osoba</Label>
+            <Label>
+              {kind === "expense" ? "Kto kupił / dla kogo?" : "Czyj wpływ?"}
+            </Label>
             <select
               className={fieldClass}
               value={person}
@@ -198,9 +242,9 @@ export default function AddPage() {
                 setPerson(e.target.value as PersonId | "shared")
               }
             >
-              <option value="shared">Wspólne</option>
               <option value="pawel">Paweł</option>
               <option value="milena">Milena</option>
+              <option value="shared">Wspólne</option>
             </select>
           </div>
           <div>
