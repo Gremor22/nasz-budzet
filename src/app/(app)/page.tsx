@@ -149,7 +149,12 @@ export default function DashboardPage() {
           )}
           <div className="border-t border-[var(--line)] pt-3">
             <div className="flex items-end justify-between gap-3">
-              <Label>Zostało w miesiącu</Label>
+              <div>
+                <Label>Zostało w miesiącu</Label>
+                <p className="text-xs text-[var(--ink-muted)]">
+                  Wpływy − wydatki w {range.label}
+                </p>
+              </div>
               <Money grosze={summary.netGrosze} size="xl" tone={netTone} />
             </div>
           </div>

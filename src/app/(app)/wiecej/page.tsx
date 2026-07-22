@@ -9,10 +9,8 @@ import type { ExportFormat } from "@/lib/data/export";
 import { useTour } from "@/lib/tour/context";
 import { ThemeSettings } from "@/components/ThemeSettings";
 import { Card, Label, Money } from "@/components/ui";
-import { parseZlToGrosze } from "@/lib/data/form-options";
-import type { PersonId } from "@/lib/data/types";
 
-const PERSON_LABEL: Record<PersonId, string> = {
+const PERSON_LABEL: Record<"pawel" | "milena", string> = {
   pawel: "Paweł",
   milena: "Milena",
 };
@@ -30,7 +28,6 @@ export default function MorePage() {
     myRole,
     members,
     createInviteCode,
-    joinWithInviteCode,
     removeMember,
     setMyPersonKey,
     signOut,
@@ -43,10 +40,6 @@ export default function MorePage() {
     String(state.household.safetyBufferGrosze / 100),
   );
   const [inviteCode, setInviteCode] = useState<string | null>(null);
-  const [joinCode, setJoinCode] = useState("");
-  const [joinPerson, setJoinPerson] = useState<PersonId>("milena");
-  const [joinBalanceZl, setJoinBalanceZl] = useState("");
-  const [joining, setJoining] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [exporting, setExporting] = useState<ExportFormat | null>(null);
@@ -196,143 +189,55 @@ export default function MorePage() {
                   {inviteCode}
                 </p>
               )}
-
-              {members.length > 0 && (
-                <ul className="mt-4 divide-y divide-[var(--line)]">
-                  {members.map((m) => (
-                    <li
-                      key={m.userId}
-                      className="flex items-center justify-between gap-2 py-2 text-sm"
-                    >
-                      <div>
-                        <p className="font-medium">{m.displayName}</p>
-                        <p className="text-xs text-[var(--ink-muted)]">
-                          {m.role === "owner" ? "Właściciel" : "Członek"}
-                          {m.personKey
-                            ? ` · ${PERSON_LABEL[m.personKey]}`
-                            : ""}
-                          {m.userId === userId ? " · Ty" : ""}
-                        </p>
-                      </div>
-                      {m.role !== "owner" && m.userId !== userId && (
-                        <button
-                          type="button"
-                          disabled={removingId === m.userId}
-                          className="text-[var(--danger)] disabled:opacity-60"
-                          onClick={async () => {
-                            if (
-                              !window.confirm(
-                                `Wyrzucić ${m.displayName} z gospodarstwa?`,
-                              )
-                            ) {
-                              return;
-                            }
-                            setRemovingId(m.userId);
-                            setError(null);
-                            try {
-                              await removeMember(m.userId);
-                            } catch (e) {
-                              setError(
-                                e instanceof Error ? e.message : "Błąd",
-                              );
-                            } finally {
-                              setRemovingId(null);
-                            }
-                          }}
-                        >
-                          Wyrzuć
-                        </button>
-                      )}
-                    </li>
-                  ))}
-                </ul>
-              )}
             </>
           )}
 
-          <div className={`${isOwner ? "mt-4 border-t border-[var(--line)] pt-4" : "mt-3"}`}>
-            <Label>Dołącz kodem</Label>
-            <form
-              className="mt-2 flex flex-col gap-2"
-              onSubmit={(e) => {
-                e.preventDefault();
-                void (async () => {
-                  setError(null);
-                  setMessage(null);
-                  const balance = parseZlToGrosze(joinBalanceZl || "0");
-                  if (balance === null || balance < 0) {
-                    setError("Podaj kwotę na swoim koncie.");
-                    return;
-                  }
-                  setJoining(true);
-                  try {
-                    await joinWithInviteCode({
-                      code: joinCode,
-                      personKey: joinPerson,
-                      balanceGrosze: balance,
-                    });
-                    setJoinCode("");
-                    setJoinBalanceZl("");
-                    setMessage("Dołączono.");
-                    router.replace("/");
-                  } catch (err) {
-                    setError(
-                      err instanceof Error
-                        ? err.message
-                        : "Nie udało się dołączyć",
-                    );
-                  } finally {
-                    setJoining(false);
-                  }
-                })();
-              }}
-            >
-              <input
-                className="w-full rounded-xl border border-[var(--line)] bg-white px-3 py-2.5 uppercase tracking-widest"
-                value={joinCode}
-                onChange={(e) => setJoinCode(e.target.value)}
-                placeholder="Kod"
-                autoCapitalize="characters"
-                autoCorrect="off"
-                spellCheck={false}
-              />
-              <div className="flex gap-2">
-                {(
-                  [
-                    ["pawel", "Paweł"],
-                    ["milena", "Milena"],
-                  ] as const
-                ).map(([id, label]) => (
-                  <button
-                    key={id}
-                    type="button"
-                    className={`flex-1 rounded-xl py-2 text-sm font-medium ${
-                      joinPerson === id
-                        ? "bg-[var(--accent)] text-white"
-                        : "bg-[var(--bg-accent)]"
-                    }`}
-                    onClick={() => setJoinPerson(id)}
-                  >
-                    {label}
-                  </button>
-                ))}
-              </div>
-              <input
-                className="w-full rounded-xl border border-[var(--line)] bg-white px-3 py-2.5"
-                inputMode="decimal"
-                placeholder="Ile masz na koncie?"
-                value={joinBalanceZl}
-                onChange={(e) => setJoinBalanceZl(e.target.value)}
-              />
-              <button
-                type="submit"
-                disabled={joining || !joinCode.trim()}
-                className="w-full rounded-xl border border-[var(--accent)] py-2.5 text-[var(--accent)] disabled:opacity-60"
-              >
-                {joining ? "Dołączanie…" : "Dołącz"}
-              </button>
-            </form>
-          </div>
+          {members.length > 0 && (
+            <ul className="mt-4 divide-y divide-[var(--line)]">
+              {members.map((m) => (
+                <li
+                  key={m.userId}
+                  className="flex items-center justify-between gap-2 py-2 text-sm"
+                >
+                  <div>
+                    <p className="font-medium">{m.displayName}</p>
+                    <p className="text-xs text-[var(--ink-muted)]">
+                      {m.role === "owner" ? "Właściciel" : "Członek"}
+                      {m.personKey ? ` · ${PERSON_LABEL[m.personKey]}` : ""}
+                      {m.userId === userId ? " · Ty" : ""}
+                    </p>
+                  </div>
+                  {isOwner && m.role !== "owner" && m.userId !== userId && (
+                    <button
+                      type="button"
+                      disabled={removingId === m.userId}
+                      className="text-[var(--danger)] disabled:opacity-60"
+                      onClick={async () => {
+                        if (
+                          !window.confirm(
+                            `Wyrzucić ${m.displayName} z gospodarstwa?`,
+                          )
+                        ) {
+                          return;
+                        }
+                        setRemovingId(m.userId);
+                        setError(null);
+                        try {
+                          await removeMember(m.userId);
+                        } catch (e) {
+                          setError(e instanceof Error ? e.message : "Błąd");
+                        } finally {
+                          setRemovingId(null);
+                        }
+                      }}
+                    >
+                      Wyrzuć
+                    </button>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
         </Card>
       )}
 
