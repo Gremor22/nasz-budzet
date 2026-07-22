@@ -60,6 +60,74 @@ export function computeCurrentBalance(state: BudgetState): number {
   return balance;
 }
 
+export function computeAccountBalance(
+  state: BudgetState,
+  accountId: string,
+): number {
+  const account = state.accounts.find((a) => a.id === accountId);
+  if (!account || !account.active) return 0;
+  let balance = account.openingBalanceGrosze;
+  for (const tx of state.transactions) {
+    if (tx.accountId !== accountId) continue;
+    if (tx.status !== "paid") continue;
+    balance += tx.type === "income" ? tx.amountGrosze : -tx.amountGrosze;
+  }
+  return balance;
+}
+
+export type OwnerBalanceRow = {
+  owner: "pawel" | "milena" | "shared";
+  label: string;
+  grosze: number;
+};
+
+/** Salda wg właściciela konta + suma „razem”. */
+export function computeBalancesByOwner(state: BudgetState): {
+  rows: OwnerBalanceRow[];
+  totalGrosze: number;
+} {
+  const labels = {
+    pawel: "Paweł",
+    milena: "Milena",
+    shared: "Wspólne",
+  } as const;
+  const sums: Record<"pawel" | "milena" | "shared", number> = {
+    pawel: 0,
+    milena: 0,
+    shared: 0,
+  };
+
+  for (const account of state.accounts) {
+    if (!account.active || !account.includeInBudget) continue;
+    const owner =
+      account.owner === "pawel" || account.owner === "milena"
+        ? account.owner
+        : "shared";
+    sums[owner] += computeAccountBalance(state, account.id);
+  }
+
+  const rows: OwnerBalanceRow[] = (
+    ["pawel", "milena", "shared"] as const
+  )
+    .filter((owner) =>
+      state.accounts.some(
+        (a) =>
+          a.active &&
+          a.includeInBudget &&
+          (owner === "shared"
+            ? a.owner === "shared"
+            : a.owner === owner),
+      ),
+    )
+    .map((owner) => ({
+      owner,
+      label: labels[owner],
+      grosze: sums[owner],
+    }));
+
+  return { rows, totalGrosze: computeCurrentBalance(state) };
+}
+
 export function computeReservedGrosze(state: BudgetState): number {
   let reserved = 0;
 

@@ -3,14 +3,21 @@
 import { useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useBudget } from "@/lib/data/budget-context";
+import { computeAccountBalance } from "@/lib/forecast/engine";
 import { Card, Label, Money } from "@/components/ui";
 import { parseZlToGrosze } from "@/lib/data/form-options";
 import type { Account, AccountType, PersonId } from "@/lib/data/types";
 
+const OWNER_LABEL: Record<PersonId | "shared", string> = {
+  pawel: "Paweł",
+  milena: "Milena",
+  shared: "Wspólne",
+};
+
 const emptyForm = {
   name: "",
-  owner: "shared" as PersonId | "shared",
-  type: "shared" as AccountType,
+  owner: "pawel" as PersonId | "shared",
+  type: "personal" as AccountType,
   openingZl: "0",
   includeInBudget: true,
   active: true,
@@ -83,19 +90,24 @@ export default function AccountsPage() {
         </Link>
         <h1 className="mt-1 text-2xl font-semibold">Konta</h1>
         <p className="text-sm text-[var(--ink-muted)]">
-          „Aktualne saldo” na Pulpicie = suma sald startowych kont + opłacone
-          transakcje. Ustaw tu, ile macie teraz na koncie.
+          Saldo na Pulpicie = start konta + opłacone wpływy − wydatki. Paweł,
+          Milena i razem widać osobno.
         </p>
       </header>
 
       <Card>
         <ul className="divide-y divide-[var(--line)]">
-          {state.accounts.map((acc) => (
+          {state.accounts.map((acc) => {
+            const live = computeAccountBalance(state, acc.id);
+            return (
             <li key={acc.id} className="flex items-start justify-between gap-2 py-3">
               <div>
                 <p className="font-medium">{acc.name}</p>
                 <p className="text-xs text-[var(--ink-muted)]">
-                  start <Money grosze={acc.openingBalanceGrosze} size="sm" />
+                  {OWNER_LABEL[acc.owner]} · teraz{" "}
+                  <Money grosze={live} size="sm" />
+                  {" · "}start{" "}
+                  <Money grosze={acc.openingBalanceGrosze} size="sm" />
                   {acc.includeInBudget ? " · w budżecie" : " · poza budżetem"}
                   {!acc.active ? " · nieaktywne" : ""}
                 </p>
@@ -120,7 +132,8 @@ export default function AccountsPage() {
                 </button>
               </div>
             </li>
-          ))}
+            );
+          })}
           {state.accounts.length === 0 && (
             <li className="py-3 text-sm text-[var(--ink-muted)]">Brak kont — dodaj pierwsze poniżej.</li>
           )}

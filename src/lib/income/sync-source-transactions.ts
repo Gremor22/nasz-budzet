@@ -18,7 +18,16 @@ function resolveBudgetWindowStart(state: BudgetState): string {
   return format(startOfMonth(parseISO(asOf)), "yyyy-MM-dd");
 }
 
-function defaultAccountId(state: BudgetState): string | null {
+function defaultAccountId(
+  state: BudgetState,
+  owner?: IncomeSource["owner"],
+): string | null {
+  if (owner) {
+    const personal = state.accounts.find(
+      (a) => a.active && a.includeInBudget && a.owner === owner,
+    );
+    if (personal) return personal.id;
+  }
   return (
     state.accounts.find((a) => a.active && a.includeInBudget)?.id ?? null
   );
@@ -159,9 +168,6 @@ function pickCanonical(
  * Deduplikuje potrójne wpisy z wyścigów refresh.
  */
 export function applyIncomeSourceSync(state: BudgetState): BudgetState {
-  const accountId = defaultAccountId(state);
-  if (!accountId) return state;
-
   const asOf = state.settings.asOfDate;
   const windowStart = resolveBudgetWindowStart(state);
   // Tylko do końca bieżącego miesiąca — nie generuj sierpnia/września z góry
@@ -186,6 +192,9 @@ export function applyIncomeSourceSync(state: BudgetState): BudgetState {
   });
 
   for (const source of state.incomeSources) {
+    const accountId = defaultAccountId(state, source.owner);
+    if (!accountId) continue;
+
     if (!source.active) {
       transactions = transactions.filter(
         (t) => !(isAutoSyncedIncome(t, source) && t.status === "planned"),
@@ -242,6 +251,7 @@ export function applyIncomeSourceSync(state: BudgetState): BudgetState {
                 status:
                   existing.status === "paid" ? "paid" : status,
                 incomeSourceId: source.id,
+                accountId,
                 updatedAt: now,
               }
             : t,

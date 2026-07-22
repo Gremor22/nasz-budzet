@@ -593,49 +593,63 @@ export class SupabaseBudgetRepository {
   }
 
   /**
-   * Prosty start: jedno konto + opcjonalna pensja. Oznacza setup jako ukończony.
+   * Prosty start: konta Pawła i Mileny + opcjonalna pensja.
    */
   async completeSimpleSetup(input: SimpleSetupInput): Promise<void> {
-    const { data: accounts, error: accListErr } = await this.supabase
-      .from("accounts")
-      .select("id")
-      .eq("household_id", this.householdId)
-      .eq("include_in_budget", true)
-      .eq("active", true)
-      .order("created_at", { ascending: true })
-      .limit(1);
+    const pawelBal = input.pawelBalanceGrosze ?? input.balanceGrosze ?? 0;
+    const milenaBal = input.milenaBalanceGrosze ?? 0;
+    const incomeOwner = input.incomeOwner ?? "pawel";
 
-    if (accListErr) throw new Error(accListErr.message);
-
-    let accountId = accounts?.[0]?.id as string | undefined;
-
-    if (accountId) {
-      const { error } = await this.supabase
+    for (const spec of [
+      { owner: "pawel" as const, name: "Konto Pawła", opening: pawelBal },
+      { owner: "milena" as const, name: "Konto Mileny", opening: milenaBal },
+    ]) {
+      const { data: existing, error: listErr } = await this.supabase
         .from("accounts")
-        .update({
-          name: "Główne konto",
-          opening_balance_grosze: input.balanceGrosze,
-        })
-        .eq("id", accountId)
-        .eq("household_id", this.householdId);
-      if (error) throw new Error(error.message);
-    } else {
-      const { data, error } = await this.supabase
-        .from("accounts")
-        .insert({
+        .select("id")
+        .eq("household_id", this.householdId)
+        .eq("owner_key", spec.owner)
+        .eq("active", true)
+        .order("created_at", { ascending: true })
+        .limit(1);
+      if (listErr) throw new Error(listErr.message);
+
+      const id = existing?.[0]?.id as string | undefined;
+      if (id) {
+        const { error } = await this.supabase
+          .from("accounts")
+          .update({
+            name: spec.name,
+            account_type: "personal",
+            opening_balance_grosze: spec.opening,
+            include_in_budget: true,
+            active: true,
+          })
+          .eq("id", id)
+          .eq("household_id", this.householdId);
+        if (error) throw new Error(error.message);
+      } else {
+        const { error } = await this.supabase.from("accounts").insert({
           household_id: this.householdId,
-          name: "Główne konto",
-          owner_key: "shared",
-          account_type: "shared",
-          opening_balance_grosze: input.balanceGrosze,
+          name: spec.name,
+          owner_key: spec.owner,
+          account_type: "personal",
+          opening_balance_grosze: spec.opening,
           include_in_budget: true,
           active: true,
-        })
-        .select("id")
-        .single();
-      if (error || !data) throw new Error(error?.message ?? "Błąd konta");
-      accountId = data.id as string;
+        });
+        if (error) throw new Error(error.message);
+      }
     }
+
+    // Stare „Główne konto” shared — wyłącz z budżetu, żeby nie dublować salda
+    const { error: sharedErr } = await this.supabase
+      .from("accounts")
+      .update({ include_in_budget: false, active: false })
+      .eq("household_id", this.householdId)
+      .eq("owner_key", "shared")
+      .eq("name", "Główne konto");
+    if (sharedErr) throw new Error(sharedErr.message);
 
     if (
       input.incomeName?.trim() &&
@@ -646,7 +660,7 @@ export class SupabaseBudgetRepository {
       const { error: incErr } = await this.supabase.from("income_sources").insert({
         household_id: this.householdId,
         name: input.incomeName.trim(),
-        owner_key: "pawel",
+        owner_key: incomeOwner,
         typical_amount_grosze: input.incomeAmountGrosze,
         safe_amount_grosze: input.incomeAmountGrosze,
         frequency: "monthly_on_day",

@@ -322,32 +322,34 @@ export function BudgetProvider({ children }: { children: ReactNode }) {
     },
     completeSimpleSetup: async (input: SimpleSetupInput) => {
       const repo = await withRepo();
+      const pawelBal = input.pawelBalanceGrosze ?? input.balanceGrosze ?? 0;
+      const milenaBal = input.milenaBalanceGrosze ?? 0;
+      const incomeOwner = input.incomeOwner ?? "pawel";
       if (!repo) {
         const day = input.incomeDayOfMonth ?? 1;
         setState((prev) => {
-          const mainId = prev.accounts[0]?.id ?? "acc-main";
-          const accounts =
-            prev.accounts.length > 0
-              ? prev.accounts.map((a, i) =>
-                  i === 0
-                    ? {
-                        ...a,
-                        name: "Główne konto",
-                        openingBalanceGrosze: input.balanceGrosze,
-                      }
-                    : a,
-                )
-              : [
-                  {
-                    id: mainId,
-                    name: "Główne konto",
-                    owner: "shared" as const,
-                    type: "shared" as const,
-                    openingBalanceGrosze: input.balanceGrosze,
-                    includeInBudget: true,
-                    active: true,
-                  },
-                ];
+          const accounts = [
+            {
+              id: prev.accounts.find((a) => a.owner === "pawel")?.id ?? "acc-pawel",
+              name: "Konto Pawła",
+              owner: "pawel" as const,
+              type: "personal" as const,
+              openingBalanceGrosze: pawelBal,
+              includeInBudget: true,
+              active: true,
+            },
+            {
+              id:
+                prev.accounts.find((a) => a.owner === "milena")?.id ??
+                "acc-milena",
+              name: "Konto Mileny",
+              owner: "milena" as const,
+              type: "personal" as const,
+              openingBalanceGrosze: milenaBal,
+              includeInBudget: true,
+              active: true,
+            },
+          ];
           const incomeSources =
             input.incomeName?.trim() &&
             input.incomeAmountGrosze &&
@@ -356,7 +358,7 @@ export function BudgetProvider({ children }: { children: ReactNode }) {
                   {
                     id: `inc-${crypto.randomUUID()}`,
                     name: input.incomeName.trim(),
-                    owner: "pawel" as const,
+                    owner: incomeOwner,
                     typicalAmountGrosze: input.incomeAmountGrosze,
                     safeAmountGrosze: input.incomeAmountGrosze,
                     frequency: "monthly_on_day" as const,

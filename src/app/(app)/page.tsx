@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import { useBudget } from "@/lib/data/budget-context";
 import { computeAnalytics } from "@/lib/analytics/summary";
-import { computeCurrentBalance } from "@/lib/forecast/engine";
+import { computeBalancesByOwner } from "@/lib/forecast/engine";
 import {
   monthKeyFromDate,
   monthRangeFromKey,
@@ -43,6 +43,8 @@ export default function DashboardPage() {
     [state.transactions, range],
   );
 
+  const balances = useMemo(() => computeBalancesByOwner(state), [state]);
+
   if (!hydrated) {
     return <p className="text-[var(--ink-muted)]">Ładowanie…</p>;
   }
@@ -53,11 +55,6 @@ export default function DashboardPage() {
       : summary.netGrosze > 0
         ? "safe"
         : "default";
-
-  const balanceGrosze = useMemo(
-    () => computeCurrentBalance(state),
-    [state],
-  );
 
   return (
     <div className="flex min-w-0 flex-col gap-4 overflow-x-hidden">
@@ -92,15 +89,31 @@ export default function DashboardPage() {
       </div>
 
       <Card>
-        <div className="flex items-end justify-between gap-3">
-          <div>
-            <Label>Na koncie teraz</Label>
-            <p className="mt-0.5 text-xs text-[var(--ink-muted)]">
-              Konto + otrzymane wpływy
-            </p>
-          </div>
-          <Money grosze={balanceGrosze} size="lg" />
+        <Label>Na kontach teraz</Label>
+        <p className="mt-0.5 text-xs text-[var(--ink-muted)]">
+          Osobno i razem — start + otrzymane wpływy − opłacone wydatki
+        </p>
+        <ul className="mt-3 space-y-2">
+          {balances.rows.map((row) => (
+            <li
+              key={row.owner}
+              className="flex items-center justify-between gap-3 text-sm"
+            >
+              <span className="text-[var(--ink-muted)]">{row.label}</span>
+              <Money grosze={row.grosze} size="sm" />
+            </li>
+          ))}
+        </ul>
+        <div className="mt-3 flex items-end justify-between gap-3 border-t border-[var(--line)] pt-3">
+          <span className="text-sm font-medium">Razem</span>
+          <Money grosze={balances.totalGrosze} size="lg" />
         </div>
+        <Link
+          href="/konta"
+          className="mt-3 block text-center text-sm text-[var(--accent)]"
+        >
+          Ustaw salda w Kontach →
+        </Link>
       </Card>
 
       <Card
