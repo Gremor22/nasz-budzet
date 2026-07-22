@@ -5,20 +5,19 @@ import { useRouter } from "next/navigation";
 import { useBudget } from "@/lib/data/budget-context";
 import { Card, Label } from "@/components/ui";
 import { parseZlToGrosze } from "@/lib/data/form-options";
-import type { PersonId } from "@/lib/data/types";
 
 export default function SimpleStartPage() {
   const router = useRouter();
-  const { completeSimpleSetup, hydrated } = useBudget();
+  const { completeSimpleSetup, hydrated, myPersonId } = useBudget();
   const [step, setStep] = useState<1 | 2>(1);
-  const [pawelZl, setPawelZl] = useState("");
-  const [milenaZl, setMilenaZl] = useState("");
+  const [balanceZl, setBalanceZl] = useState("");
   const [incomeName, setIncomeName] = useState("Pensja");
   const [incomeZl, setIncomeZl] = useState("");
   const [incomeDay, setIncomeDay] = useState("10");
-  const [incomeOwner, setIncomeOwner] = useState<PersonId>("pawel");
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+
+  const who = myPersonId === "milena" ? "Milena" : "Paweł";
 
   if (!hydrated) {
     return <p className="text-[var(--ink-muted)]">Ładowanie…</p>;
@@ -27,10 +26,9 @@ export default function SimpleStartPage() {
   function onBalanceNext(e: FormEvent) {
     e.preventDefault();
     setError(null);
-    const pawel = parseZlToGrosze(pawelZl || "0");
-    const milena = parseZlToGrosze(milenaZl || "0");
-    if (pawel === null || pawel < 0 || milena === null || milena < 0) {
-      setError("Podaj kwoty na kontach (0 lub więcej).");
+    const balance = parseZlToGrosze(balanceZl || "0");
+    if (balance === null || balance < 0) {
+      setError("Podaj kwotę na koncie (0 lub więcej).");
       return;
     }
     setStep(2);
@@ -38,10 +36,9 @@ export default function SimpleStartPage() {
 
   async function finish(withIncome: boolean) {
     setError(null);
-    const pawel = parseZlToGrosze(pawelZl || "0");
-    const milena = parseZlToGrosze(milenaZl || "0");
-    if (pawel === null || pawel < 0 || milena === null || milena < 0) {
-      setError("Podaj kwoty na kontach.");
+    const balance = parseZlToGrosze(balanceZl || "0");
+    if (balance === null || balance < 0) {
+      setError("Podaj kwotę na koncie.");
       setStep(1);
       return;
     }
@@ -70,12 +67,11 @@ export default function SimpleStartPage() {
     setSaving(true);
     try {
       await completeSimpleSetup({
-        pawelBalanceGrosze: pawel,
-        milenaBalanceGrosze: milena,
+        myBalanceGrosze: balance,
         incomeName: withIncome ? incomeName.trim() : undefined,
         incomeAmountGrosze,
         incomeDayOfMonth,
-        incomeOwner: withIncome ? incomeOwner : undefined,
+        incomeOwner: myPersonId ?? "pawel",
       });
       router.replace("/");
       router.refresh();
@@ -86,10 +82,6 @@ export default function SimpleStartPage() {
     }
   }
 
-  const pawelPreview = parseZlToGrosze(pawelZl || "0") ?? 0;
-  const milenaPreview = parseZlToGrosze(milenaZl || "0") ?? 0;
-  const togetherPreview = pawelPreview + milenaPreview;
-
   return (
     <div className="flex flex-col gap-4">
       <header>
@@ -97,45 +89,22 @@ export default function SimpleStartPage() {
           Krok {step} z 2
         </p>
         <h1 className="mt-1 text-2xl font-semibold">Szybki start</h1>
-        <p className="text-sm text-[var(--ink-muted)]">
-          Saldo Pawła, Mileny i razem — potem opcjonalnie pensja.
-        </p>
       </header>
 
       {step === 1 ? (
         <Card>
           <form className="flex flex-col gap-3" onSubmit={onBalanceNext}>
             <div>
-              <Label>Ile ma Paweł na koncie?</Label>
+              <Label>Ile masz na koncie, {who}?</Label>
               <input
                 className="mt-2 w-full rounded-xl border border-[var(--line)] bg-white px-3 py-2.5 text-lg"
                 inputMode="decimal"
                 placeholder="np. 2000"
-                value={pawelZl}
-                onChange={(e) => setPawelZl(e.target.value)}
+                value={balanceZl}
+                onChange={(e) => setBalanceZl(e.target.value)}
                 autoFocus
               />
             </div>
-            <div>
-              <Label>Ile ma Milena na koncie?</Label>
-              <input
-                className="mt-2 w-full rounded-xl border border-[var(--line)] bg-white px-3 py-2.5 text-lg"
-                inputMode="decimal"
-                placeholder="np. 1500"
-                value={milenaZl}
-                onChange={(e) => setMilenaZl(e.target.value)}
-              />
-            </div>
-            <p className="rounded-xl bg-[var(--accent-soft)] px-3 py-2 text-sm">
-              Razem:{" "}
-              <strong>
-                {(togetherPreview / 100).toLocaleString("pl-PL", {
-                  minimumFractionDigits: 2,
-                  maximumFractionDigits: 2,
-                })}{" "}
-                zł
-              </strong>
-            </p>
             {error && (
               <p className="rounded-xl bg-[#fde8e8] px-3 py-2 text-sm text-[var(--danger)]">
                 {error}
@@ -152,12 +121,7 @@ export default function SimpleStartPage() {
       ) : (
         <Card>
           <div className="flex flex-col gap-3">
-            <div>
-              <Label>Główna wypłata (opcjonalnie)</Label>
-              <p className="mt-1 text-xs text-[var(--ink-muted)]">
-                Żeby prognoza wiedziała, kiedy wpływają pieniądze. Możesz pominąć.
-              </p>
-            </div>
+            <Label>Twoja wypłata (opcjonalnie)</Label>
             <div>
               <Label>Nazwa</Label>
               <input
@@ -165,30 +129,6 @@ export default function SimpleStartPage() {
                 value={incomeName}
                 onChange={(e) => setIncomeName(e.target.value)}
               />
-            </div>
-            <div>
-              <Label>Czyja pensja?</Label>
-              <div className="mt-1 flex gap-2">
-                {(
-                  [
-                    ["pawel", "Paweł"],
-                    ["milena", "Milena"],
-                  ] as const
-                ).map(([id, label]) => (
-                  <button
-                    key={id}
-                    type="button"
-                    className={`flex-1 rounded-xl py-2.5 text-sm font-medium ${
-                      incomeOwner === id
-                        ? "bg-[var(--accent)] text-white"
-                        : "bg-[var(--bg-accent)]"
-                    }`}
-                    onClick={() => setIncomeOwner(id)}
-                  >
-                    {label}
-                  </button>
-                ))}
-              </div>
             </div>
             <div>
               <Label>Kwota (zł)</Label>
@@ -228,7 +168,7 @@ export default function SimpleStartPage() {
               className="rounded-xl border border-[var(--line)] py-2.5 text-sm"
               onClick={() => void finish(false)}
             >
-              Pomiń — tylko salda na teraz
+              Pomiń
             </button>
             <button
               type="button"

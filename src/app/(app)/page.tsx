@@ -17,7 +17,7 @@ import { Card, Label, Money } from "@/components/ui";
 import { formatDateShortPl } from "@/lib/dates/calendar";
 
 export default function DashboardPage() {
-  const { state, hydrated, dataSource } = useBudget();
+  const { state, hydrated, dataSource, myPersonId } = useBudget();
   const [monthKey, setMonthKey] = useState(() =>
     monthKeyFromDate(state.settings.asOfDate),
   );
@@ -43,7 +43,10 @@ export default function DashboardPage() {
     [state.transactions, range],
   );
 
-  const balances = useMemo(() => computeBalancesByOwner(state), [state]);
+  const balances = useMemo(
+    () => computeBalancesByOwner(state, myPersonId),
+    [state, myPersonId],
+  );
 
   if (!hydrated) {
     return <p className="text-[var(--ink-muted)]">Ładowanie…</p>;
@@ -55,6 +58,9 @@ export default function DashboardPage() {
       : summary.netGrosze > 0
         ? "safe"
         : "default";
+
+  const mineRow = balances.rows[0];
+  const otherRows = balances.rows.slice(1);
 
   return (
     <div className="flex min-w-0 flex-col gap-4 overflow-x-hidden">
@@ -89,21 +95,25 @@ export default function DashboardPage() {
       </div>
 
       <Card>
-        <Label>Na kontach teraz</Label>
-        <p className="mt-0.5 text-xs text-[var(--ink-muted)]">
-          Osobno i razem — start + otrzymane wpływy − opłacone wydatki
-        </p>
-        <ul className="mt-3 space-y-2">
-          {balances.rows.map((row) => (
-            <li
-              key={row.owner}
-              className="flex items-center justify-between gap-3 text-sm"
-            >
-              <span className="text-[var(--ink-muted)]">{row.label}</span>
-              <Money grosze={row.grosze} size="sm" />
-            </li>
-          ))}
-        </ul>
+        {mineRow && (
+          <div className="flex items-end justify-between gap-3">
+            <Label>{mineRow.label}</Label>
+            <Money grosze={mineRow.grosze} size="xl" />
+          </div>
+        )}
+        {otherRows.length > 0 && (
+          <ul className="mt-3 space-y-2 border-t border-[var(--line)] pt-3">
+            {otherRows.map((row) => (
+              <li
+                key={row.owner}
+                className="flex items-center justify-between gap-3 text-sm"
+              >
+                <span className="text-[var(--ink-muted)]">{row.label}</span>
+                <Money grosze={row.grosze} size="sm" />
+              </li>
+            ))}
+          </ul>
+        )}
         <div className="mt-3 flex items-end justify-between gap-3 border-t border-[var(--line)] pt-3">
           <span className="text-sm font-medium">Razem</span>
           <Money grosze={balances.totalGrosze} size="lg" />
@@ -112,7 +122,7 @@ export default function DashboardPage() {
           href="/konta"
           className="mt-3 block text-center text-sm text-[var(--accent)]"
         >
-          Ustaw salda w Kontach →
+          Konta →
         </Link>
       </Card>
 

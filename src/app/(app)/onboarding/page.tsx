@@ -5,13 +5,17 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { useBudget } from "@/lib/data/budget-context";
 import { Card, Label } from "@/components/ui";
+import { parseZlToGrosze } from "@/lib/data/form-options";
+import type { PersonId } from "@/lib/data/types";
 
 export default function OnboardingPage() {
   const router = useRouter();
   const { refresh, signOut, joinWithInviteCode } = useBudget();
   const [mode, setMode] = useState<"create" | "join">("join");
   const [name, setName] = useState("Paweł i Milena");
+  const [personKey, setPersonKey] = useState<PersonId>("pawel");
   const [code, setCode] = useState("");
+  const [balanceZl, setBalanceZl] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -32,17 +36,17 @@ export default function OnboardingPage() {
 
       const { data, error: rpcError } = await supabase.rpc("create_household", {
         p_name: name.trim(),
+        p_person_key: personKey,
       });
       if (rpcError) {
         setError(rpcError.message);
         return;
       }
       if (!data) {
-        setError("Nie udało się utworzyć gospodarstwa (brak odpowiedzi).");
+        setError("Nie udało się utworzyć gospodarstwa.");
         return;
       }
 
-      // Ważne: odśwież kontekst, inaczej bramka znowu wróci na onboarding
       await refresh();
       router.replace("/start");
       router.refresh();
@@ -58,7 +62,16 @@ export default function OnboardingPage() {
     setError(null);
     setLoading(true);
     try {
-      await joinWithInviteCode(code);
+      const balance = parseZlToGrosze(balanceZl || "0");
+      if (balance === null || balance < 0) {
+        setError("Podaj kwotę na swoim koncie.");
+        return;
+      }
+      await joinWithInviteCode({
+        code,
+        personKey,
+        balanceGrosze: balance,
+      });
       router.replace("/");
       router.refresh();
     } catch (err) {
@@ -72,11 +85,6 @@ export default function OnboardingPage() {
     <div className="flex flex-col gap-4">
       <header>
         <h1 className="text-2xl font-semibold">Gospodarstwo</h1>
-        <p className="text-sm text-[var(--ink-muted)]">
-          Utwórz wspólne gospodarstwo albo dołącz kodem zaproszenia.
-          Jeśli partner już ma budżet — wybierz{" "}
-          <strong>Dołącz kodem</strong>, nie twórz drugiego.
-        </p>
       </header>
 
       <div className="flex gap-2">
@@ -115,10 +123,30 @@ export default function OnboardingPage() {
                 onChange={(e) => setName(e.target.value)}
                 required
               />
-              <p className="mt-1 text-xs text-[var(--ink-muted)]">
-                Propozycja demo: „Paweł i Milena” — bez prawdziwych danych
-                finansowych.
-              </p>
+            </div>
+            <div>
+              <Label>Kim jesteś?</Label>
+              <div className="mt-1 flex gap-2">
+                {(
+                  [
+                    ["pawel", "Paweł"],
+                    ["milena", "Milena"],
+                  ] as const
+                ).map(([id, label]) => (
+                  <button
+                    key={id}
+                    type="button"
+                    className={`flex-1 rounded-xl py-2.5 text-sm font-medium ${
+                      personKey === id
+                        ? "bg-[var(--accent)] text-white"
+                        : "bg-[var(--bg-accent)]"
+                    }`}
+                    onClick={() => setPersonKey(id)}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
             </div>
             {error && (
               <p className="rounded-xl bg-[#fde8e8] px-3 py-2 text-sm text-[var(--danger)]">
@@ -145,6 +173,40 @@ export default function OnboardingPage() {
                 required
               />
             </div>
+            <div>
+              <Label>Kim jesteś?</Label>
+              <div className="mt-1 flex gap-2">
+                {(
+                  [
+                    ["pawel", "Paweł"],
+                    ["milena", "Milena"],
+                  ] as const
+                ).map(([id, label]) => (
+                  <button
+                    key={id}
+                    type="button"
+                    className={`flex-1 rounded-xl py-2.5 text-sm font-medium ${
+                      personKey === id
+                        ? "bg-[var(--accent)] text-white"
+                        : "bg-[var(--bg-accent)]"
+                    }`}
+                    onClick={() => setPersonKey(id)}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div>
+              <Label>Ile masz na swoim koncie?</Label>
+              <input
+                className="mt-1 w-full rounded-xl border border-[var(--line)] bg-white px-3 py-2.5"
+                inputMode="decimal"
+                placeholder="np. 2000"
+                value={balanceZl}
+                onChange={(e) => setBalanceZl(e.target.value)}
+              />
+            </div>
             {error && (
               <p className="rounded-xl bg-[#fde8e8] px-3 py-2 text-sm text-[var(--danger)]">
                 {error}
@@ -166,7 +228,7 @@ export default function OnboardingPage() {
         className="w-full rounded-xl border border-[var(--line)] py-2.5 text-sm text-[var(--ink-muted)]"
         onClick={() => void signOut()}
       >
-        Wyloguj i spróbuj innym kontem
+        Wyloguj
       </button>
     </div>
   );

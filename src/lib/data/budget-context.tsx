@@ -27,6 +27,9 @@ import type {
   BudgetState,
   ForecastMode,
   ForecastResult,
+  HouseholdMember,
+  HouseholdMemberRole,
+  PersonId,
   Transaction,
 } from "@/lib/data/types";
 import { computeForecast } from "@/lib/forecast/engine";
@@ -47,6 +50,10 @@ interface BudgetContextValue {
   dataSource: DataSource;
   householdId: string | null;
   userEmail: string | null;
+  userId: string | null;
+  myPersonId: PersonId | null;
+  myRole: HouseholdMemberRole | null;
+  members: HouseholdMember[];
   error: string | null;
   refresh: (opts?: { preferHouseholdId?: string }) => Promise<void>;
   addExpense: (
@@ -56,7 +63,7 @@ interface BudgetContextValue {
     input: Omit<Transaction, "id" | "createdAt" | "updatedAt" | "type">,
   ) => Promise<string>;
   removeTransaction: (id: string) => Promise<void>;
-  completeSimpleSetup: (input: import("@/lib/data/simple-setup").SimpleSetupInput) => Promise<void>;
+  completeSimpleSetup: (input: SimpleSetupInput) => Promise<void>;
   resetHouseholdBudget: () => Promise<void>;
   changeMode: (mode: ForecastMode) => Promise<void>;
   changeHorizon: (days: number) => Promise<void>;
@@ -73,7 +80,13 @@ interface BudgetContextValue {
   saveSavingsGoal: (input: SavingsGoalInput & { id?: string }) => Promise<void>;
   removeSavingsGoal: (id: string) => Promise<void>;
   createInviteCode: () => Promise<string>;
-  joinWithInviteCode: (code: string) => Promise<void>;
+  joinWithInviteCode: (input: {
+    code: string;
+    personKey: PersonId;
+    balanceGrosze: number;
+  }) => Promise<void>;
+  removeMember: (userId: string) => Promise<void>;
+  setMyPersonKey: (personKey: PersonId) => Promise<void>;
   signOut: () => Promise<void>;
 }
 
@@ -92,6 +105,10 @@ export function BudgetProvider({ children }: { children: ReactNode }) {
   const [dataSource, setDataSource] = useState<DataSource>("loading");
   const [householdId, setHouseholdId] = useState<string | null>(null);
   const [userEmail, setUserEmail] = useState<string | null>(null);
+  const [userId, setUserId] = useState<string | null>(null);
+  const [myPersonId, setMyPersonId] = useState<PersonId | null>(null);
+  const [myRole, setMyRole] = useState<HouseholdMemberRole | null>(null);
+  const [members, setMembers] = useState<HouseholdMember[]>([]);
   const [error, setError] = useState<string | null>(null);
   const refreshInFlight = useRef<Promise<void> | null>(null);
 
@@ -113,6 +130,10 @@ export function BudgetProvider({ children }: { children: ReactNode }) {
         setDataSource("local");
         setHouseholdId(null);
         setUserEmail(null);
+        setUserId(null);
+        setMyPersonId(null);
+        setMyRole(null);
+        setMembers([]);
         setState(createDemoState());
         setHydrated(true);
         return;
@@ -127,11 +148,16 @@ export function BudgetProvider({ children }: { children: ReactNode }) {
         setDataSource("local");
         setHouseholdId(null);
         setUserEmail(null);
+        setUserId(null);
+        setMyPersonId(null);
+        setMyRole(null);
+        setMembers([]);
         setHydrated(true);
         return;
       }
 
       setUserEmail(user.email ?? null);
+      setUserId(user.id);
 
       let householdIdToLoad: string | null = null;
 
@@ -191,12 +217,49 @@ export function BudgetProvider({ children }: { children: ReactNode }) {
       if (!householdIdToLoad) {
         setHouseholdId(null);
         writeActiveHouseholdId(null);
+        setMyPersonId(null);
+        setMyRole(null);
+        setMembers([]);
         setDataSource("supabase");
         setHydrated(true);
         return;
       }
 
       try {
+        const { data: memberRows, error: membersErr } = await supabase
+          .from("household_members")
+          .select("user_id, role, person_key")
+          .eq("household_id", householdIdToLoad);
+        if (membersErr) throw new Error(membersErr.message);
+
+        const userIds = (memberRows ?? []).map((m) => m.user_id as string);
+        const { data: profiles } = userIds.length
+          ? await supabase
+              .from("profiles")
+              .select("id, display_name")
+              .in("id", userIds)
+          : { data: [] as { id: string; display_name: string }[] };
+
+        const profileById = new Map(
+          (profiles ?? []).map((p) => [p.id as string, p.display_name as string]),
+        );
+
+        const loadedMembers: HouseholdMember[] = (memberRows ?? []).map((m) => {
+          const pk = m.person_key;
+          return {
+            userId: m.user_id as string,
+            role: (m.role as HouseholdMemberRole) ?? "member",
+            personKey:
+              pk === "pawel" || pk === "milena" ? pk : null,
+            displayName: profileById.get(m.user_id as string) ?? "Użytkownik",
+          };
+        });
+        setMembers(loadedMembers);
+
+        const mine = loadedMembers.find((m) => m.userId === user.id);
+        setMyRole(mine?.role ?? null);
+        setMyPersonId(mine?.personKey ?? null);
+
         const repo = new SupabaseBudgetRepository(
           supabase,
           householdIdToLoad,
@@ -258,6 +321,10 @@ export function BudgetProvider({ children }: { children: ReactNode }) {
     dataSource,
     householdId,
     userEmail,
+    userId,
+    myPersonId,
+    myRole,
+    members,
     error,
     refresh,
     addExpense: async (input) => {
@@ -322,30 +389,28 @@ export function BudgetProvider({ children }: { children: ReactNode }) {
     },
     completeSimpleSetup: async (input: SimpleSetupInput) => {
       const repo = await withRepo();
-      const pawelBal = input.pawelBalanceGrosze ?? input.balanceGrosze ?? 0;
-      const milenaBal = input.milenaBalanceGrosze ?? 0;
-      const incomeOwner = input.incomeOwner ?? "pawel";
+      const person: PersonId = myPersonId ?? "pawel";
+      const myBal = input.myBalanceGrosze ?? input.balanceGrosze ?? 0;
       if (!repo) {
         const day = input.incomeDayOfMonth ?? 1;
+        const partner: PersonId = person === "pawel" ? "milena" : "pawel";
         setState((prev) => {
           const accounts = [
             {
-              id: prev.accounts.find((a) => a.owner === "pawel")?.id ?? "acc-pawel",
-              name: "Konto Pawła",
-              owner: "pawel" as const,
+              id: `acc-${person}`,
+              name: person === "pawel" ? "Konto Pawła" : "Konto Mileny",
+              owner: person,
               type: "personal" as const,
-              openingBalanceGrosze: pawelBal,
+              openingBalanceGrosze: myBal,
               includeInBudget: true,
               active: true,
             },
             {
-              id:
-                prev.accounts.find((a) => a.owner === "milena")?.id ??
-                "acc-milena",
-              name: "Konto Mileny",
-              owner: "milena" as const,
+              id: `acc-${partner}`,
+              name: partner === "pawel" ? "Konto Pawła" : "Konto Mileny",
+              owner: partner,
               type: "personal" as const,
-              openingBalanceGrosze: milenaBal,
+              openingBalanceGrosze: 0,
               includeInBudget: true,
               active: true,
             },
@@ -358,7 +423,7 @@ export function BudgetProvider({ children }: { children: ReactNode }) {
                   {
                     id: `inc-${crypto.randomUUID()}`,
                     name: input.incomeName.trim(),
-                    owner: incomeOwner,
+                    owner: input.incomeOwner ?? person,
                     typicalAmountGrosze: input.incomeAmountGrosze,
                     safeAmountGrosze: input.incomeAmountGrosze,
                     frequency: "monthly_on_day" as const,
@@ -385,7 +450,7 @@ export function BudgetProvider({ children }: { children: ReactNode }) {
         });
         return;
       }
-      await repo.completeSimpleSetup(input);
+      await repo.completeSimpleSetup(input, person);
       await refresh();
     },
     resetHouseholdBudget: async () => {
@@ -612,6 +677,9 @@ export function BudgetProvider({ children }: { children: ReactNode }) {
     },
     createInviteCode: async () => {
       if (!householdId) throw new Error("Brak gospodarstwa");
+      if (myRole !== "owner") {
+        throw new Error("Tylko właściciel gospodarstwa może generować kod");
+      }
       const supabase = createClient();
       const { data, error: rpcError } = await supabase.rpc("create_invitation", {
         p_household_id: householdId,
@@ -620,8 +688,8 @@ export function BudgetProvider({ children }: { children: ReactNode }) {
       if (rpcError) throw new Error(rpcError.message);
       return String(data);
     },
-    joinWithInviteCode: async (code: string) => {
-      const trimmed = code.trim();
+    joinWithInviteCode: async (input) => {
+      const trimmed = input.code.trim();
       if (!trimmed) throw new Error("Wpisz kod zaproszenia");
       if (!hasSupabaseEnv()) {
         throw new Error("Dołączanie wymaga konta w Supabase");
@@ -629,11 +697,36 @@ export function BudgetProvider({ children }: { children: ReactNode }) {
       const supabase = createClient();
       const { data, error: rpcError } = await supabase.rpc("accept_invitation", {
         p_code: trimmed,
+        p_person_key: input.personKey,
+        p_opening_balance_grosze: Math.max(0, Math.round(input.balanceGrosze)),
       });
       if (rpcError) throw new Error(rpcError.message);
       const joinedId = data ? String(data) : undefined;
       if (joinedId) writeActiveHouseholdId(joinedId);
       await refresh(joinedId ? { preferHouseholdId: joinedId } : undefined);
+    },
+    removeMember: async (memberUserId: string) => {
+      if (!householdId) throw new Error("Brak gospodarstwa");
+      if (myRole !== "owner") {
+        throw new Error("Tylko właściciel może wyrzucać członków");
+      }
+      const supabase = createClient();
+      const { error: rpcError } = await supabase.rpc("remove_household_member", {
+        p_household_id: householdId,
+        p_user_id: memberUserId,
+      });
+      if (rpcError) throw new Error(rpcError.message);
+      await refresh({ preferHouseholdId: householdId });
+    },
+    setMyPersonKey: async (personKey: PersonId) => {
+      if (!householdId) throw new Error("Brak gospodarstwa");
+      const supabase = createClient();
+      const { error: rpcError } = await supabase.rpc("set_my_person_key", {
+        p_household_id: householdId,
+        p_person_key: personKey,
+      });
+      if (rpcError) throw new Error(rpcError.message);
+      await refresh({ preferHouseholdId: householdId });
     },
     signOut: async () => {
       if (hasSupabaseEnv()) {

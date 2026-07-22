@@ -8,7 +8,7 @@ const SECTIONS = [
     title: "Pierwsze kroki",
     items: [
       "Po pierwszym logowaniu uruchomi się przewodnik ze strzałkami — możesz go pominąć lub włączyć ponownie w Więcej.",
-      "Utwórz gospodarstwo albo dołącz kodem: Więcej → Zaproszenie (wygeneruj / wpisz kod).",
+      "Utwórz gospodarstwo albo dołącz kodem (Więcej → Gospodarstwo).",
       "Uzupełnij konta, źródła dochodu i rachunki cykliczne — wtedy prognoza ma sens.",
       "Dodawaj wydatki i przychody z zakładki „+” lub skanuj paragon.",
     ],

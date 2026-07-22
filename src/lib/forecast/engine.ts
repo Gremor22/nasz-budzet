@@ -81,10 +81,14 @@ export type OwnerBalanceRow = {
   grosze: number;
 };
 
-/** Salda wg właściciela konta + suma „razem”. */
-export function computeBalancesByOwner(state: BudgetState): {
+/** Salda wg właściciela konta + suma „razem”. myPersonId → „Moje” na górze. */
+export function computeBalancesByOwner(
+  state: BudgetState,
+  myPersonId?: "pawel" | "milena" | null,
+): {
   rows: OwnerBalanceRow[];
   totalGrosze: number;
+  mineGrosze: number | null;
 } {
   const labels = {
     pawel: "Paweł",
@@ -106,9 +110,14 @@ export function computeBalancesByOwner(state: BudgetState): {
     sums[owner] += computeAccountBalance(state, account.id);
   }
 
-  const rows: OwnerBalanceRow[] = (
-    ["pawel", "milena", "shared"] as const
-  )
+  const order: Array<"pawel" | "milena" | "shared"> =
+    myPersonId === "milena"
+      ? ["milena", "pawel", "shared"]
+      : myPersonId === "pawel"
+        ? ["pawel", "milena", "shared"]
+        : ["pawel", "milena", "shared"];
+
+  const rows: OwnerBalanceRow[] = order
     .filter((owner) =>
       state.accounts.some(
         (a) =>
@@ -121,11 +130,18 @@ export function computeBalancesByOwner(state: BudgetState): {
     )
     .map((owner) => ({
       owner,
-      label: labels[owner],
+      label:
+        myPersonId && owner === myPersonId
+          ? `Moje (${labels[owner]})`
+          : labels[owner],
       grosze: sums[owner],
     }));
 
-  return { rows, totalGrosze: computeCurrentBalance(state) };
+  return {
+    rows,
+    totalGrosze: computeCurrentBalance(state),
+    mineGrosze: myPersonId ? sums[myPersonId] : null,
+  };
 }
 
 export function computeReservedGrosze(state: BudgetState): number {

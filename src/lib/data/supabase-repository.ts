@@ -593,62 +593,87 @@ export class SupabaseBudgetRepository {
   }
 
   /**
-   * Prosty start: konta Pawła i Mileny + opcjonalna pensja.
+   * Prosty start: saldo zalogowanej osoby na jej koncie osobistym + opcjonalna pensja.
    */
-  async completeSimpleSetup(input: SimpleSetupInput): Promise<void> {
-    const pawelBal = input.pawelBalanceGrosze ?? input.balanceGrosze ?? 0;
-    const milenaBal = input.milenaBalanceGrosze ?? 0;
-    const incomeOwner = input.incomeOwner ?? "pawel";
+  async completeSimpleSetup(
+    input: SimpleSetupInput,
+    myPersonId: "pawel" | "milena",
+  ): Promise<void> {
+    const myBal =
+      input.myBalanceGrosze ??
+      (myPersonId === "pawel"
+        ? (input.pawelBalanceGrosze ?? input.balanceGrosze ?? 0)
+        : (input.milenaBalanceGrosze ?? 0));
+    const incomeOwner = input.incomeOwner ?? myPersonId;
+    const myName =
+      myPersonId === "pawel" ? "Konto Pawła" : "Konto Mileny";
 
-    for (const spec of [
-      { owner: "pawel" as const, name: "Konto Pawła", opening: pawelBal },
-      { owner: "milena" as const, name: "Konto Mileny", opening: milenaBal },
-    ]) {
-      const { data: existing, error: listErr } = await this.supabase
+    const { data: existing, error: listErr } = await this.supabase
+      .from("accounts")
+      .select("id")
+      .eq("household_id", this.householdId)
+      .eq("owner_key", myPersonId)
+      .eq("active", true)
+      .order("created_at", { ascending: true })
+      .limit(1);
+    if (listErr) throw new Error(listErr.message);
+
+    const id = existing?.[0]?.id as string | undefined;
+    if (id) {
+      const { error } = await this.supabase
         .from("accounts")
-        .select("id")
-        .eq("household_id", this.householdId)
-        .eq("owner_key", spec.owner)
-        .eq("active", true)
-        .order("created_at", { ascending: true })
-        .limit(1);
-      if (listErr) throw new Error(listErr.message);
-
-      const id = existing?.[0]?.id as string | undefined;
-      if (id) {
-        const { error } = await this.supabase
-          .from("accounts")
-          .update({
-            name: spec.name,
-            account_type: "personal",
-            opening_balance_grosze: spec.opening,
-            include_in_budget: true,
-            active: true,
-          })
-          .eq("id", id)
-          .eq("household_id", this.householdId);
-        if (error) throw new Error(error.message);
-      } else {
-        const { error } = await this.supabase.from("accounts").insert({
-          household_id: this.householdId,
-          name: spec.name,
-          owner_key: spec.owner,
+        .update({
+          name: myName,
           account_type: "personal",
-          opening_balance_grosze: spec.opening,
+          opening_balance_grosze: myBal,
           include_in_budget: true,
           active: true,
-        });
-        if (error) throw new Error(error.message);
-      }
+        })
+        .eq("id", id)
+        .eq("household_id", this.householdId);
+      if (error) throw new Error(error.message);
+    } else {
+      const { error } = await this.supabase.from("accounts").insert({
+        household_id: this.householdId,
+        name: myName,
+        owner_key: myPersonId,
+        account_type: "personal",
+        opening_balance_grosze: myBal,
+        include_in_budget: true,
+        active: true,
+      });
+      if (error) throw new Error(error.message);
     }
 
-    // Stare „Główne konto” shared — wyłącz z budżetu, żeby nie dublować salda
+    // Partner: upewnij się, że slot konta istnieje (0, dopóki nie uzupełni)
+    const partnerId = myPersonId === "pawel" ? "milena" : "pawel";
+    const partnerName =
+      partnerId === "pawel" ? "Konto Pawła" : "Konto Mileny";
+    const { data: partnerAcc } = await this.supabase
+      .from("accounts")
+      .select("id")
+      .eq("household_id", this.householdId)
+      .eq("owner_key", partnerId)
+      .limit(1);
+    if (!partnerAcc?.length) {
+      const { error: partnerErr } = await this.supabase.from("accounts").insert({
+        household_id: this.householdId,
+        name: partnerName,
+        owner_key: partnerId,
+        account_type: "personal",
+        opening_balance_grosze: 0,
+        include_in_budget: true,
+        active: true,
+      });
+      if (partnerErr) throw new Error(partnerErr.message);
+    }
+
     const { error: sharedErr } = await this.supabase
       .from("accounts")
       .update({ include_in_budget: false, active: false })
       .eq("household_id", this.householdId)
       .eq("owner_key", "shared")
-      .eq("name", "Główne konto");
+      .in("name", ["Główne konto", "Konto wspólne"]);
     if (sharedErr) throw new Error(sharedErr.message);
 
     if (

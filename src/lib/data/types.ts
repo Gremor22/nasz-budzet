@@ -2,6 +2,16 @@
 
 export type PersonId = "pawel" | "milena";
 
+export type HouseholdMemberRole = "owner" | "member";
+
+export interface HouseholdMember {
+  userId: string;
+  role: HouseholdMemberRole;
+  personKey: PersonId | null;
+  displayName: string;
+  email?: string;
+}
+
 export type ForecastMode = "cautious" | "realistic" | "full";
 
 export type IncomeConfidence = "confirmed" | "expected" | "forecast";
