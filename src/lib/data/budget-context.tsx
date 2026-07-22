@@ -274,11 +274,26 @@ export function BudgetProvider({ children }: { children: ReactNode }) {
         }
         const fresh = await repo.load();
         fresh.settings.asOfDate = todayIsoWarsaw();
-        const synced = applyIncomeSourceSync(fresh);
-        if (incomeSourceSyncChanged(fresh, synced)) {
-          await repo.persistIncomeSourceSync(fresh, synced);
+        try {
+          await repo.syncIncomeSourceTransactions({
+            asOfDate: fresh.settings.asOfDate,
+            horizonDays: fresh.settings.horizonDays,
+          });
+          const afterSync = await repo.load();
+          afterSync.settings.asOfDate = todayIsoWarsaw();
+          setState(afterSync);
+        } catch {
+          // Fallback gdy RPC Etapu 8 jeszcze nie jest na serwerze
+          const synced = applyIncomeSourceSync(fresh);
+          if (incomeSourceSyncChanged(fresh, synced)) {
+            await repo.persistIncomeSourceSync(fresh, synced);
+            const afterLegacy = await repo.load();
+            afterLegacy.settings.asOfDate = todayIsoWarsaw();
+            setState(afterLegacy);
+          } else {
+            setState(synced);
+          }
         }
-        setState(synced);
         setHouseholdId(householdIdToLoad);
         writeActiveHouseholdId(householdIdToLoad);
         setDataSource("supabase");

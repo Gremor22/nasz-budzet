@@ -19,7 +19,6 @@ import type {
   SavingsGoal,
 } from "@/lib/data/types";
 import { todayIsoWarsaw } from "@/lib/dates/today";
-import { nextMonthlyPayDate } from "@/lib/dates/pay-day";
 
 function monthStartIso(iso: string): string {
   return `${iso.slice(0, 7)}-01`;
@@ -129,7 +128,33 @@ export class SupabaseBudgetRepository {
     if (error) throw new Error(error.message);
   }
 
-  /** Zapisuje różnicę transakcji po synchronizacji ze źródłami dochodu. */
+  /**
+   * Atomowy sync wpływów ze źródeł (Etap 8 RPC).
+   * Zwraca liczbę upsertów; przy braku funkcji na serwerze rzuca — caller może spaść na legacy.
+   */
+  async syncIncomeSourceTransactions(opts?: {
+    asOfDate?: string;
+    horizonDays?: number;
+    windowEnd?: string | null;
+  }): Promise<number> {
+    const horizon = opts?.horizonDays;
+    const { data, error } = await this.supabase.rpc(
+      "sync_income_source_transactions",
+      {
+        p_household_id: this.householdId,
+        p_as_of: opts?.asOfDate ?? null,
+        p_horizon_days:
+          horizon == null
+            ? null
+            : Math.max(0, Math.min(365, Math.round(horizon))),
+        p_window_end: opts?.windowEnd ?? null,
+      },
+    );
+    if (error) throw new Error(error.message);
+    return typeof data === "number" ? data : Number(data ?? 0);
+  }
+
+  /** Zapisuje różnicę transakcji po synchronizacji ze źródłami dochodu (legacy / lokalny fallback). */
   async persistIncomeSourceSync(
     before: import("@/lib/data/types").BudgetState,
     after: import("@/lib/data/types").BudgetState,
@@ -184,7 +209,6 @@ export class SupabaseBudgetRepository {
       }
     }
 
-    // Usuń zbędne auto-sync (także opłacone duplikaty i sieroty bez income_source_id)
     for (const t of before.transactions) {
       if (afterById.has(t.id)) continue;
       if (t.incomeSourceId) {
@@ -593,7 +617,7 @@ export class SupabaseBudgetRepository {
   }
 
   /**
-   * Prosty start: saldo zalogowanej osoby na jej koncie osobistym + opcjonalna pensja.
+   * Prosty start: saldo + opcjonalna pensja (Etap 8 RPC — sloty + claim membership).
    */
   async completeSimpleSetup(
     input: SimpleSetupInput,
@@ -604,165 +628,28 @@ export class SupabaseBudgetRepository {
       (myPersonId === "pawel"
         ? (input.pawelBalanceGrosze ?? input.balanceGrosze ?? 0)
         : (input.milenaBalanceGrosze ?? 0));
-    const incomeOwner = input.incomeOwner ?? myPersonId;
-    const myName =
-      myPersonId === "pawel" ? "Konto Pawła" : "Konto Mileny";
 
-    const { data: existing, error: listErr } = await this.supabase
-      .from("accounts")
-      .select("id")
-      .eq("household_id", this.householdId)
-      .eq("owner_key", myPersonId)
-      .eq("active", true)
-      .order("created_at", { ascending: true })
-      .limit(1);
-    if (listErr) throw new Error(listErr.message);
-
-    const id = existing?.[0]?.id as string | undefined;
-    if (id) {
-      const { error } = await this.supabase
-        .from("accounts")
-        .update({
-          name: myName,
-          account_type: "personal",
-          opening_balance_grosze: myBal,
-          include_in_budget: true,
-          active: true,
-        })
-        .eq("id", id)
-        .eq("household_id", this.householdId);
-      if (error) throw new Error(error.message);
-    } else {
-      const { error } = await this.supabase.from("accounts").insert({
-        household_id: this.householdId,
-        name: myName,
-        owner_key: myPersonId,
-        account_type: "personal",
-        opening_balance_grosze: myBal,
-        include_in_budget: true,
-        active: true,
-      });
-      if (error) throw new Error(error.message);
-    }
-
-    // Partner: upewnij się, że slot konta istnieje (0, dopóki nie uzupełni)
-    const partnerId = myPersonId === "pawel" ? "milena" : "pawel";
-    const partnerName =
-      partnerId === "pawel" ? "Konto Pawła" : "Konto Mileny";
-    const { data: partnerAcc } = await this.supabase
-      .from("accounts")
-      .select("id")
-      .eq("household_id", this.householdId)
-      .eq("owner_key", partnerId)
-      .limit(1);
-    if (!partnerAcc?.length) {
-      const { error: partnerErr } = await this.supabase.from("accounts").insert({
-        household_id: this.householdId,
-        name: partnerName,
-        owner_key: partnerId,
-        account_type: "personal",
-        opening_balance_grosze: 0,
-        include_in_budget: true,
-        active: true,
-      });
-      if (partnerErr) throw new Error(partnerErr.message);
-    }
-
-    const { error: sharedErr } = await this.supabase
-      .from("accounts")
-      .update({ include_in_budget: false, active: false })
-      .eq("household_id", this.householdId)
-      .eq("owner_key", "shared")
-      .in("name", ["Główne konto", "Konto wspólne"]);
-    if (sharedErr) throw new Error(sharedErr.message);
-
-    if (
-      input.incomeName?.trim() &&
-      input.incomeAmountGrosze &&
-      input.incomeAmountGrosze > 0
-    ) {
-      const day = input.incomeDayOfMonth ?? 1;
-      const { error: incErr } = await this.supabase.from("income_sources").insert({
-        household_id: this.householdId,
-        name: input.incomeName.trim(),
-        owner_key: incomeOwner,
-        typical_amount_grosze: input.incomeAmountGrosze,
-        safe_amount_grosze: input.incomeAmountGrosze,
-        frequency: "monthly_on_day",
-        day_of_month: day,
-        next_occurrence_date: nextMonthlyPayDate(day),
-        confidence: "expected",
-        active: true,
-      });
-      if (incErr) throw new Error(incErr.message);
-    }
-
-    const setupPatch = {
-      initial_setup_done: true,
-      budget_started_date: monthStartIso(todayIsoWarsaw()),
-    };
-    const { error: hhErr } = await this.supabase
-      .from("households")
-      .update(setupPatch)
-      .eq("id", this.householdId);
-    if (hhErr) {
-      if (/budget_started_date/i.test(hhErr.message)) {
-        const { error: fallbackErr } = await this.supabase
-          .from("households")
-          .update({ initial_setup_done: true })
-          .eq("id", this.householdId);
-        if (fallbackErr) throw new Error(fallbackErr.message);
-      } else {
-        throw new Error(hhErr.message);
-      }
-    }
+    const { error } = await this.supabase.rpc("complete_simple_setup", {
+      p_household_id: this.householdId,
+      p_person_key: myPersonId,
+      p_my_balance_grosze: Math.max(0, Math.round(myBal)),
+      p_income_name: input.incomeName?.trim() || null,
+      p_income_amount_grosze:
+        input.incomeAmountGrosze && input.incomeAmountGrosze > 0
+          ? Math.round(input.incomeAmountGrosze)
+          : null,
+      p_income_day_of_month: input.incomeDayOfMonth ?? null,
+    });
+    if (error) throw new Error(error.message);
   }
 
   /**
-   * Usuwa wszystkie dane budżetu i wraca do pustego startu (kreator od nowa).
+   * Usuwa wszystkie dane budżetu i wraca do pustego startu (Etap 8 RPC, owner-only).
    */
   async resetHouseholdBudget(): Promise<void> {
-    const tables = [
-      "transactions",
-      "income_sources",
-      "recurring_bills",
-      "savings_goals",
-      "classification_rules",
-      "receipts",
-    ] as const;
-
-    for (const table of tables) {
-      const { error } = await this.supabase
-        .from(table)
-        .delete()
-        .eq("household_id", this.householdId);
-      if (error) throw new Error(error.message);
-    }
-
-    const { error: delAccErr } = await this.supabase
-      .from("accounts")
-      .delete()
-      .eq("household_id", this.householdId);
-    if (delAccErr) throw new Error(delAccErr.message);
-
-    const { error: insAccErr } = await this.supabase.from("accounts").insert({
-      household_id: this.householdId,
-      name: "Główne konto",
-      owner_key: "shared",
-      account_type: "shared",
-      opening_balance_grosze: 0,
-      include_in_budget: true,
-      active: true,
+    const { error } = await this.supabase.rpc("reset_household_budget", {
+      p_household_id: this.householdId,
     });
-    if (insAccErr) throw new Error(insAccErr.message);
-
-    const { error: hhErr } = await this.supabase
-      .from("households")
-      .update({
-        safety_buffer_grosze: 0,
-        initial_setup_done: false,
-      })
-      .eq("id", this.householdId);
-    if (hhErr) throw new Error(hhErr.message);
+    if (error) throw new Error(error.message);
   }
 }
